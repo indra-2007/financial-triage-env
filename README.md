@@ -1,4 +1,5 @@
 ---
+
 title: Financial Triage Environment
 emoji: 💰
 colorFrom: green
@@ -6,17 +7,22 @@ colorTo: blue
 sdk: docker
 app_port: 7860
 tags:
-- openenv
+
+* openenv
+
 ---
 
 # Personal Financial Triage & Life Budget Advisor
+
+🔗 **Live Environment**
+https://huggingface.co/spaces/indra-dhanush/financial-triage-env
 
 A production-grade OpenEnv environment simulating real-world personal financial decision-making.
 An AI agent operates inside a household financial system and must make daily decisions to balance liquidity, debt, and long-term stability.
 
 ---
 
-# 🧠 Why this matters
+## 🧠 Why this matters
 
 Financial decision-making affects every human. Poor decisions compound over time through interest, penalties, and missed obligations.
 
@@ -28,24 +34,31 @@ This environment models:
 * income uncertainty
 * credit score dynamics
 
-Unlike static benchmarks, this environment captures **long-term financial consequences**, making it ideal for evaluating real-world AI agents.
+Unlike static benchmarks, this environment captures long-term financial consequences, making it ideal for evaluating real-world AI agents.
 
 ---
 
-# ⚙️ Environment Overview
+## 🧠 Agent Challenge
+
+**Can an AI survive 90 days of financial stress without going bankrupt?**
+
+---
+
+## ⚙️ Environment Overview
 
 * **1 step = 1 day**
-* Episodes:
 
-  * Easy → 30 days
-  * Medium → 60 days
-  * Hard → 90 days
+### Episodes:
+
+* Easy → 30 days
+* Medium → 60 days
+* Hard → 90 days
 
 The agent must continuously decide how to allocate limited resources under uncertainty.
 
 ---
 
-# 👁 Observation Space
+## 👁 Observation Space
 
 At every step, the agent sees:
 
@@ -58,7 +71,10 @@ At every step, the agent sees:
 
 ### Bills
 
-* amount, due date, category, payment status
+* amount
+* due date
+* category
+* payment status
 
 ### Debt Stack
 
@@ -80,7 +96,7 @@ At every step, the agent sees:
 
 ---
 
-# 🎯 Action Space
+## 🎯 Action Space
 
 The agent can take actions such as:
 
@@ -96,7 +112,7 @@ All actions are validated and affect future financial states.
 
 ---
 
-# 🔥 What makes this environment hard
+## 🔥 What makes this environment hard
 
 ### ⏳ Delayed consequences
 
@@ -118,7 +134,7 @@ The agent must balance:
 
 ---
 
-# 💰 Reward Design Philosophy
+## 💰 Reward Design Philosophy
 
 The environment provides **dense daily rewards**.
 
@@ -139,15 +155,13 @@ The environment provides **dense daily rewards**.
 
 Each step includes a detailed:
 
-```json
-reward_breakdown
-```
+👉 **reward_breakdown**
 
 This ensures transparency and interpretability.
 
 ---
 
-# 🧪 Tasks
+## 🧪 Tasks
 
 ### 🟢 Easy — Stability
 
@@ -162,10 +176,11 @@ This ensures transparency and interpretability.
 
 * Multiple debts with different APR
 * Irregular income
-* Goal:
 
-  * minimize interest
-  * avoid missed payments
+Goal:
+
+* minimize interest
+* avoid missed payments
 
 ---
 
@@ -174,28 +189,100 @@ This ensures transparency and interpretability.
 * Job loss mid-episode
 * Reduced income
 * Multiple creditors
-* Goal:
 
-  * avoid default
-  * maintain credit score > 650
-  * rebuild savings
+Goal:
+
+* avoid default
+* maintain credit score > 650
+* rebuild savings
 
 ---
 
-# 📊 Evaluation Metrics
+## 📊 Evaluation Metrics
 
 Agents are scored using smooth metrics:
 
-* **Overdraft avoidance**
-* **Interest minimization**
-* **Credit score stability**
-* **Savings growth**
+* Overdraft avoidance
+* Interest minimization
+* Credit score stability
+* Savings growth
 
 Scores range from **0.0 → 1.0** and reward partial success.
 
 ---
 
-# 🧠 Why this environment is novel
+## 📊 Baseline Performance
+
+Heuristic agent scores:
+
+* Easy: ~0.93
+* Medium: ~0.56
+* Hard: ~0.40
+
+This demonstrates increasing difficulty and clear headroom for advanced agents.
+
+---
+
+## 🔌 API Usage (OpenEnv)
+
+### Reset environment
+
+POST /reset
+
+Example:
+{
+"task_id": "hard"
+}
+
+---
+
+### Step environment
+
+POST /step
+
+Example:
+{
+"action": {
+"action_type": "pay_minimum",
+"debt_id": "cc_platinum"
+}
+}
+
+---
+
+### Get current state
+
+GET /state
+
+---
+
+## 🚀 Running the Environment
+
+Validate:
+
+```
+openenv validate
+```
+
+Run inference:
+
+```
+uv run inference.py
+```
+
+---
+
+## ⚡ Key Features
+
+* deterministic randomness (seeded)
+* realistic financial dynamics
+* dense reward shaping
+* interpretable reward breakdown
+* fast simulation (<1s per episode)
+
+---
+
+## 🧠 Why this environment is novel
 
 * Not a toy problem
 * Not classification or QA
@@ -207,33 +294,7 @@ This environment can directly power real financial assistant systems.
 
 ---
 
-# 🚀 Running the Environment
-
-### Validate:
-
-```bash
-openenv validate
-```
-
-### Run inference:
-
-```bash
-uv run inference.py
-```
-
----
-
-# ⚡ Key Features
-
-* deterministic randomness (seeded)
-* realistic financial dynamics
-* dense reward shaping
-* interpretable reward breakdown
-* fast simulation (<1s per episode)
-
----
-
-# 🏁 Summary
+## 🏁 Summary
 
 This environment provides a realistic, high-signal benchmark for evaluating AI agents in long-horizon financial decision-making.
 
