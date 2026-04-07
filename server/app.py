@@ -70,6 +70,12 @@ def main(host: str = "0.0.0.0", port: int = 7860):
 
     uvicorn.run(app, host=host, port=port)
 
+from fastapi import FastAPI
+
+root_app = FastAPI()
+root_app.mount("/", app)
+
+app = root_app
 
 if __name__ == "__main__":
     main()
