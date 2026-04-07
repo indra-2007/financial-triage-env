@@ -1,0 +1,18 @@
+spec_version: 1
+name: financial_triage
+description: >
+  Personal Financial Triage & Life Budget Advisor.
+  A realistic personal finance simulation where an AI agent manages cash flow,
+  bills, debts, interest accumulation, credit score dynamics, and emergency
+  expenses over multi-day episodes. 1 step = 1 day.
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860
+tasks:
+  - id: easy
+    description: "30-day episode. Stable bi-weekly income, 3 bills, no debt. Goal: pay bills on time."
+  - id: medium
+    description: "60-day episode. Irregular income, 5 bills, 3 debts. Goal: minimize interest."
+  - id: hard
+    description: "90-day episode. Job loss at day 30, 6 bills, 4 debts, emergencies. Goal: survive."
