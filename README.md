@@ -1,3 +1,14 @@
+---
+title: Financial Triage Environment
+emoji: 💰
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 7860
+tags:
+- openenv
+---
+
 # Personal Financial Triage & Life Budget Advisor
 
 A production-grade OpenEnv environment simulating real-world personal financial decision-making.
