@@ -1,5 +1,4 @@
 ---
-
 title: Financial Triage Environment
 emoji: 💰
 colorFrom: green
@@ -7,9 +6,7 @@ colorTo: blue
 sdk: docker
 app_port: 7860
 tags:
-
-* openenv
-
+  - openenv
 ---
 
 # Personal Financial Triage & Life Budget Advisor
