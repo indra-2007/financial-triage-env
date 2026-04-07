@@ -6,9 +6,39 @@ MANDATORY
     API_BASE_URL   The API endpoint for the LLM.
     MODEL_NAME     The model identifier to use for inference.
     HF_TOKEN       Your Hugging Face / API key.
+    LOCAL_IMAGE_NAME The name of the local image to use for the environment if you are using
+                     from_docker_image() method
+
+- Defaults are set only for API_BASE_URL and MODEL_NAME
+    (and should reflect your active inference setup):
+    API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+    MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
 
 - The inference script must be named `inference.py` and placed in the root directory of the project
 - Participants must use OpenAI Client for all LLM calls using above variables
+
+STDOUT FORMAT
+- The script must emit exactly three line types to stdout, in this order:
+
+    [START] task=<task_name> env=financial_triage model=<model_name>
+    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
+
+  Rules:
+    - One [START] line at episode begin.
+    - One [STEP] line per step, immediately after env.step() returns.
+    - One [END] line after episode ends, always emitted (even on exception).
+    - reward and rewards are formatted to 2 decimal places.
+    - done and success are lowercase booleans: true or false.
+    - error is the raw error string, or null if none.
+    - All fields on a single line with no newlines within a line.
+    - Each task should return score in [0, 1]
+
+  Example:
+    [START] task=easy env=financial_triage model=meta-llama/Llama-3.3-70B-Instruct
+    [STEP] step=1 action=pay_bill_full(rent) reward=15.00 done=false error=null
+    [STEP] step=2 action=do_nothing reward=5.00 done=false error=null
+    [END] success=true steps=30 score=0.933 rewards=15.00,5.00,...
 """
 
 import os
@@ -16,7 +46,7 @@ import re
 import sys
 import json
 import textwrap
-from typing import Optional
+from typing import List, Optional
 
 from openai import OpenAI
 
@@ -34,17 +64,60 @@ from server.my_env_environment import MyEnvironment
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
-# Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+BENCHMARK = "financial_triage"
 MAX_STEPS = 100
 TEMPERATURE = 0.2
 MAX_TOKENS = 200
-FALLBACK_ACTION = "do_nothing"
+SUCCESS_SCORE_THRESHOLD = 0.3
 
 # ---------------------------------------------------------------------------
 # Valid action types the LLM can choose from
 # ---------------------------------------------------------------------------
 VALID_ACTIONS = [a.value for a in ActionType]
+
+# ---------------------------------------------------------------------------
+# Structured stdout logging (exact format required by OpenEnv evaluator)
+# ---------------------------------------------------------------------------
+
+
+def log_start(task: str, env: str, model: str) -> None:
+    print(f"[START] task={task} env={env} model={model}", flush=True)
+
+
+def log_step(
+    step: int, action: str, reward: float, done: bool, error: Optional[str] = None
+) -> None:
+    error_val = error if error else "null"
+    done_val = str(done).lower()
+    print(
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        flush=True,
+    )
+
+
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+        flush=True,
+    )
+
+
+def format_action(action: FinancialAction) -> str:
+    """Format a FinancialAction into a clean string for logging (no spaces)."""
+    action_str = action.action_type.value
+    if action.bill_id:
+        action_str += f"({action.bill_id})"
+    elif action.debt_id:
+        action_str += f"({action.debt_id}"
+        if action.amount:
+            action_str += f",{action.amount:.2f}"
+        action_str += ")"
+    elif action.amount:
+        action_str += f"({action.amount:.2f})"
+    return action_str
+
 
 # ---------------------------------------------------------------------------
 # System prompt for the LLM financial advisor
@@ -289,52 +362,63 @@ def run_episode(
 ) -> float:
     """Run a single episode and return the grader score."""
     obs = env.reset(seed=42, task_id=task_id)
-    total_reward = 0.0
+    rewards: List[float] = []
     step = 0
+    score = 0.0
+    success = False
 
-    print(f"START {task_id}")
+    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
 
-    while not obs.done and step < MAX_STEPS:
-        action = None
+    try:
+        while not obs.done and step < MAX_STEPS:
+            action = None
 
-        if use_llm:
-            user_prompt = observation_to_prompt(obs)
-            try:
-                completion = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    temperature=TEMPERATURE,
-                    max_tokens=MAX_TOKENS,
-                    stream=False,
-                )
-                response_text = completion.choices[0].message.content or ""
-                action = parse_action(response_text, obs)
-                action_str = f"{action.action_type.value}"
-                if action.bill_id:
-                    action_str += f"({action.bill_id})"
-                elif action.debt_id:
-                    action_str += f"({action.debt_id}"
-                    if action.amount:
-                        action_str += f", {action.amount}"
-                    action_str += ")"
-                elif action.amount:
-                    action_str += f"({action.amount})"
-                print(f"STEP {step} | LLM → {action_str}")
-            except Exception as exc:
-                print(f"STEP {step} | LLM error ({exc}), using heuristic")
+            if use_llm:
+                user_prompt = observation_to_prompt(obs)
+                try:
+                    completion = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=[
+                            {"role": "system", "content": SYSTEM_PROMPT},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        temperature=TEMPERATURE,
+                        max_tokens=MAX_TOKENS,
+                        stream=False,
+                    )
+                    response_text = completion.choices[0].message.content or ""
+                    action = parse_action(response_text, obs)
+                except Exception as exc:
+                    print(f"[DEBUG] Model request failed: {exc}", flush=True)
+                    action = _heuristic_action(obs)
+            else:
                 action = _heuristic_action(obs)
-        else:
-            action = _heuristic_action(obs)
 
-        obs = env.step(action)
-        total_reward += obs.reward
-        step += 1
+            # Format action string for logging (no spaces)
+            action_str = format_action(action)
 
-    score = env.get_episode_score()
-    print(f"END {task_id} | SCORE: {score:.4f}")
+            # Execute step
+            obs = env.step(action)
+            step += 1
+
+            # Log step immediately after env.step() returns
+            log_step(
+                step=step,
+                action=action_str,
+                reward=obs.reward,
+                done=obs.done,
+                error=None,
+            )
+
+            rewards.append(obs.reward)
+
+        # Compute final grader score
+        score = env.get_episode_score()
+        success = score >= SUCCESS_SCORE_THRESHOLD
+
+    finally:
+        # Always emit [END], even on exception
+        log_end(success=success, steps=step, score=score, rewards=rewards)
 
     return score
 
@@ -350,7 +434,7 @@ def main() -> None:
     # Check if LLM is available
     use_llm = True
     if not HF_TOKEN:
-        print("⚠️  No API key found. Running with heuristic agent (no LLM).")
+        print(f"[DEBUG] No API key found. Running with heuristic agent (no LLM).", flush=True)
         use_llm = False
 
     # Initialize environment
@@ -364,19 +448,8 @@ def main() -> None:
         score = run_episode(env, client, task_id, use_llm=use_llm)
         scores[task_id] = score
 
-    # Print final summary
-    print(f"\n{'='*60}")
-    print("  FINAL SCORES")
-    print(f"{'='*60}")
-    for task_id, score in scores.items():
-        status = "✅" if score > 0.5 else "⚠️" if score > 0.2 else "❌"
-        print(f"  {task_id:8s}: {score:.4f} {status}")
-    avg = sum(scores.values()) / len(scores)
-    print(f"  {'average':8s}: {avg:.4f}")
-    print(f"{'='*60}")
-
-    # Output JSON for automated scoring
-    print(f"\nscores_json={json.dumps(scores)}")
+    # Output JSON for automated scoring (informational)
+    print(f"scores_json={json.dumps(scores)}", flush=True)
 
 
 if __name__ == "__main__":

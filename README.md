@@ -253,19 +253,43 @@ GET /state
 
 ---
 
-## 🚀 Running the Environment
+## 🚀 Setup & Running the Environment
 
-Validate:
+### Install dependencies
 
+```bash
+pip install -r requirements.txt
 ```
+
+### Validate OpenEnv compliance
+
+```bash
 openenv validate
 ```
 
-Run inference:
+### Run inference (heuristic baseline)
 
+```bash
+python inference.py
 ```
-uv run inference.py
+
+### Run inference (with LLM)
+
+```bash
+export API_BASE_URL="https://router.huggingface.co/v1"
+export MODEL_NAME="meta-llama/Llama-3.3-70B-Instruct"
+export HF_TOKEN="your-huggingface-token"
+python inference.py
 ```
+
+### Docker
+
+```bash
+docker build -t financial-triage-env .
+docker run -p 7860:7860 financial-triage-env
+```
+
+The server will be available at `http://localhost:7860`.
 
 ---
 
