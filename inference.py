@@ -32,8 +32,10 @@ from server.my_env_environment import MyEnvironment
 # Configuration from environment variables
 # ---------------------------------------------------------------------------
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy"
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+# Optional - if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 MAX_STEPS = 100
 TEMPERATURE = 0.2
 MAX_TOKENS = 200
@@ -290,14 +292,7 @@ def run_episode(
     total_reward = 0.0
     step = 0
 
-    print(f"\n{'='*60}")
-    print(f"  TASK: {task_id.upper()} ({obs.episode_length} days)")
-    print(f"  Checking: ${obs.account.checking_balance:.2f}")
-    print(f"  Savings:  ${obs.account.savings_balance:.2f}")
-    print(f"  Credit:   {obs.risk.credit_score}")
-    if obs.debts:
-        print(f"  Debts:    {len(obs.debts)} totaling ${sum(d.principal for d in obs.debts):.2f}")
-    print(f"{'='*60}")
+    print(f"START {task_id}")
 
     while not obs.done and step < MAX_STEPS:
         action = None
@@ -327,9 +322,9 @@ def run_episode(
                     action_str += ")"
                 elif action.amount:
                     action_str += f"({action.amount})"
-                print(f"  Day {obs.current_day:3d}: LLM → {action_str}")
+                print(f"STEP {step} | LLM → {action_str}")
             except Exception as exc:
-                print(f"  Day {obs.current_day:3d}: LLM error ({exc}), using heuristic")
+                print(f"STEP {step} | LLM error ({exc}), using heuristic")
                 action = _heuristic_action(obs)
         else:
             action = _heuristic_action(obs)
@@ -339,14 +334,7 @@ def run_episode(
         step += 1
 
     score = env.get_episode_score()
-    print(f"\n  --- Results ---")
-    print(f"  Steps:        {step}")
-    print(f"  Total Reward: {total_reward:.2f}")
-    print(f"  Credit Score: {obs.risk.credit_score}")
-    print(f"  Checking:     ${obs.account.checking_balance:.2f}")
-    print(f"  Savings:      ${obs.account.savings_balance:.2f}")
-    print(f"  Net Worth:    ${obs.net_worth:.2f}")
-    print(f"  GRADER SCORE: {score:.4f}")
+    print(f"END {task_id} | SCORE: {score:.4f}")
 
     return score
 
@@ -354,11 +342,14 @@ def run_episode(
 def main() -> None:
     """Run inference on all 3 tasks and print results."""
     # Initialize OpenAI client
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    if HF_TOKEN:
+        client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+    else:
+        client = OpenAI(base_url=API_BASE_URL, api_key="dummy")
 
     # Check if LLM is available
     use_llm = True
-    if API_KEY in ("dummy", "", None):
+    if not HF_TOKEN:
         print("⚠️  No API key found. Running with heuristic agent (no LLM).")
         use_llm = False
 
