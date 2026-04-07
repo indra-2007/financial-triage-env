@@ -44,9 +44,8 @@ app = create_app(
     MyEnvironment,
     MyAction,
     MyObservation,
-    env_name="my_env",
+    env_name="",   # 🔥 THIS FIXES ROUTING
     max_concurrent_envs=1,
-    root_path=""
 )
 
 
