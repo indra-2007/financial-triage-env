@@ -9,7 +9,7 @@ MANDATORY
     LOCAL_IMAGE_NAME The name of the local image to use for the environment if you are using
                      from_docker_image() method
 
-- Defaults are set only for API_BASE_URL and MODEL_name
+- Defaults are set only for API_BASE_URL and MODEL_NAME
     (and should reflect your active inference setup):
     API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
     MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")

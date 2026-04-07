@@ -259,8 +259,8 @@ def get_task_config(task_id: str = "easy") -> Dict[str, Any]:
 
 
 def _clamp(value: float) -> float:
-    """Clamp to [0.0, 1.0]."""
-    return max(0.0, min(1.0, value))
+    """Clamp to strict (0, 1) open interval — evaluator rejects 0.0 and 1.0."""
+    return max(0.001, min(0.999, value))
 
 
 def grade_easy(history: Dict[str, Any], final: Dict[str, Any]) -> float:
