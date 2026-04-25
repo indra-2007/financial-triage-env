@@ -1,3 +1,13 @@
+---
+title: Financial Triage Environment
+emoji: 💰
+colorFrom: red
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🏥💰 Financial Triage: Can AI Survive 90 Days of India's Financial Crisis?
 
 > *"We built an RL environment trained on India's most widespread crisis — 73% of the population financially illiterate, facing salary delays and debt traps daily. Our agent learns what most Indians were never taught."*
