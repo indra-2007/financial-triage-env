@@ -466,13 +466,17 @@ class MyEnvironment(Environment):
                 self._active_festival = None
 
     def _generate_cycle_bills(self, cycle: int) -> None:
-        """Generate active bills for a 30-day cycle from templates."""
+        """Generate active bills for a 30-day cycle from templates.
+        Bills have ±15% stochastic variance to prevent memorization."""
         for tmpl in self._bill_templates:
-            amount = tmpl["amount"]
+            base_amount = tmpl["amount"]
             # Apply bill changes (e.g., rent increase)
             for change in self._bill_changes:
                 if change["bill_id"] == tmpl["id"] and (cycle * 30) >= change["from_day"]:
-                    amount = change["new_amount"]
+                    base_amount = change["new_amount"]
+            # ±15% stochastic variance (seeded for reproducibility)
+            variance = self._rng.uniform(-0.15, 0.15)
+            amount = round(base_amount * (1.0 + variance), 0)
             self._active_bills.append({
                 "id": tmpl["id"],
                 "amount": amount,
@@ -694,7 +698,7 @@ class MyEnvironment(Environment):
             "id": f"loan_shark_{self._current_day}", "principal": actual, "apr": cfg["apr"],
             "minimum_due": min_due, "credit_limit": None, "min_payment_due_day": 10,
             "is_credit_card": False, "missed_payments": 0, "min_paid_this_cycle": False,
-            "original_principal": actual,
+            "original_principal": actual, "is_informal": True,
         })
         self._history["informal_loans_taken"] += 1
         self._today_events.append(f"⚠️ Informal loan taken: ₹{actual:.0f} INSTANT — but APR is {cfg['apr']}%!")
@@ -1000,7 +1004,8 @@ class MyEnvironment(Environment):
                 DebtInfo(
                     id=d["id"],
                     principal=round(d["principal"], 2),
-                    apr=d["apr"],
+                    # Partial observability: informal lender hides true APR
+                    apr=d["apr"] if not d.get("is_informal") else round(d["apr"] * 0.1, 1),
                     minimum_due=round(d["minimum_due"], 2),
                     missed_payments=d["missed_payments"],
                 )
