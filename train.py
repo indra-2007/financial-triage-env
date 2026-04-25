@@ -33,7 +33,7 @@ print("="*50)
 from unsloth import FastLanguageModel
 import torch
 
-model_name = 'unsloth/Qwen2.5-7B-Instruct-bnb-4bit'
+model_name = 'unsloth/Qwen2.5-14B-Instruct-bnb-4bit'
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name=model_name, max_seq_length=1024, load_in_4bit=True,
 )
