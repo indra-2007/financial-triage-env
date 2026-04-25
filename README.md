@@ -26,16 +26,7 @@ Fintech apps show pie charts. **We train AI to make decisions.**
 
 ## How It Works
 
-```mermaid
-flowchart LR
-    A["🔄 reset(task_id)"] --> B["📊 Observation\n• Checking/Savings\n• Bills & Debts\n• CIBIL Score\n• Loan Offers\n• Emergencies"]
-    B --> C["🤖 Agent picks\n1 of 11 actions"]
-    C --> D["⚙️ Environment\nadvances 1 day"]
-    D --> E{"Episode\ndone?"}
-    E -->|No| F["💰 Salary, UPI drain,\ninterest, late fees,\nmedical emergencies"]
-    F --> B
-    E -->|Yes| G["📈 Grader scores\n0.0 → 1.0"]
-```
+![Environment Loop — reset → observe → act → step → grade](flowchart.png)
 
 **1 step = 1 day.** The agent sees its full financial state and picks ONE action. The environment simulates salary deposits, UPI micro-spends, interest accrual, bill deadlines, medical shocks, and Diwali pressure — then returns the next day's state + a 14-component reward signal.
 
