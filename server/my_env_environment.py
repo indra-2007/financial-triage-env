@@ -952,7 +952,8 @@ class MyEnvironment(Environment):
         if self._checking < 0:
             breakdown["overdraft_penalty"] = -25.0
 
-        breakdown["interest_penalty"] = self._today_interest * -2.0
+        # Interest penalty scaled for INR (₹470/day interest → ~-9.4 penalty)
+        breakdown["interest_penalty"] = (self._today_interest / 100.0) * -2.0
         breakdown["default_penalty"] = self._today_defaults * -50.0
 
         if self._savings <= 0.01:
