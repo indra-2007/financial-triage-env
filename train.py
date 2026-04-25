@@ -1,4 +1,4 @@
-"""Financial Triage — 7B Training Script (A10G)"""
+"""Financial Triage — 14B Training Script (A10G)"""
 import os, sys
 sys.path.insert(0, '.')
 
@@ -28,7 +28,7 @@ for task_id in ['easy', 'medium', 'hard']:
 
 # --- Load model ---
 print("\n" + "="*50)
-print("STEP 2: Loading 7B model")
+print("STEP 2: Loading 14B model")
 print("="*50)
 from unsloth import FastLanguageModel
 import torch
@@ -198,7 +198,7 @@ for task_id in ['easy', 'medium', 'hard']:
     grpo_scores[task_id] = scores
 
 print('\n' + '='*55)
-print(f'{"Task":>8} | {"Heuristic":>10} | {"SFT (7B)":>10} | {"GRPO (7B)":>10}')
+print(f'{"Task":>8} | {"Heuristic":>10} | {"SFT (14B)":>10} | {"GRPO (14B)":>10}')
 print('-'*55)
 for t in ['easy','medium','hard']:
     h = sum(baseline_scores[t])/len(baseline_scores[t])
@@ -222,7 +222,7 @@ losses = [x['loss'] for x in sft_log if 'loss' in x]
 fig, ax = plt.subplots(figsize=(8,4))
 ax.plot(steps, losses, color='#2196F3', linewidth=2)
 ax.set_xlabel('Step'); ax.set_ylabel('Loss')
-ax.set_title('SFT Training Loss (7B)'); ax.grid(True, alpha=0.3)
+ax.set_title('SFT Training Loss (14B)'); ax.grid(True, alpha=0.3)
 plt.tight_layout(); plt.savefig('training_loss.png', dpi=150)
 print('📈 Saved training_loss.png')
 
@@ -232,14 +232,14 @@ h_avg = [sum(baseline_scores[t])/len(baseline_scores[t]) for t in ['easy','mediu
 s_avg = [sum(sft_scores[t])/len(sft_scores[t]) for t in ['easy','medium','hard']]
 g_avg = [sum(grpo_scores[t])/len(grpo_scores[t]) for t in ['easy','medium','hard']]
 ax.bar(x-w, h_avg, w, label='Heuristic', color='#FF9800')
-ax.bar(x, s_avg, w, label='SFT (7B)', color='#2196F3')
-ax.bar(x+w, g_avg, w, label='GRPO (7B)', color='#4CAF50')
+ax.bar(x, s_avg, w, label='SFT (14B)', color='#2196F3')
+ax.bar(x+w, g_avg, w, label='GRPO (14B)', color='#4CAF50')
 for i in range(3):
     for v,dx in [(h_avg[i],-w),(s_avg[i],0),(g_avg[i],w)]:
         ax.text(i+dx, v+0.02, f'{v:.3f}', ha='center', fontsize=9, fontweight='bold')
 ax.set_xticks(x); ax.set_xticklabels(['Easy (30d)','Medium (60d)','Hard (90d)'])
 ax.set_ylabel('Score (0-1)'); ax.set_ylim(0,1.1)
-ax.set_title('Financial Triage — 7B Agent Performance'); ax.legend()
+ax.set_title('Financial Triage — 14B Agent Performance'); ax.legend()
 ax.grid(True, axis='y', alpha=0.3)
 plt.tight_layout(); plt.savefig('before_after_scores.png', dpi=150)
 print('📊 Saved before_after_scores.png')
