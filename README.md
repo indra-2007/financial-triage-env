@@ -217,6 +217,30 @@ An agent trained on Financial Triage learns:
 
 > *For 51% of Indians struggling to meet their debts and liabilities — far exceeding the global average of 32% — AI-driven financial triage isn't a technological curiosity. It's a mathematical imperative for survival.*
 
+## 📈 Results & Reward Curves
+
+### Baseline Reward Curves (Heuristic Agent)
+
+Cumulative reward per day across all 3 difficulty tiers. Easy accumulates steadily; Hard drops sharply at day 30 (job loss) and day 72 (second medical emergency).
+
+![Heuristic baseline reward curves across Easy, Medium, and Hard tasks](reward_curves_baseline.png)
+
+### Baseline Episode Scores
+
+Scores before any LLM training — the heuristic agent alone achieves these. A trained LLM agent should beat these baselines.
+
+![Heuristic baseline scores: Easy=0.999, Medium=0.694, Hard=0.427](baseline_scores.png)
+
+### Training Pipeline
+
+Train the agent using our Colab notebook: [`financial_triage_training.ipynb`](financial_triage_training.ipynb)
+
+- **Phase 1 (SFT)**: Warmup on 180 expert examples from heuristic agent
+- **Phase 2 (GRPO)**: RL against the live environment — actions executed in real env and scored
+- **Model**: Qwen2.5-3B-Instruct (4-bit) on free Colab T4. Scale to 7B by changing one line.
+
+> Training loss curves and before/after comparison plots are generated automatically by the notebook (saved as `training_loss.png` and `before_after_scores.png`).
+
 ---
 
 ## 📜 License
