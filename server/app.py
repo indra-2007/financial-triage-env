@@ -56,6 +56,10 @@ app = create_app(
 def read_root():
     return {"status": "ok", "message": "Environment is running on Hugging Face Spaces"}
 
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
 
 def main(host: str = "0.0.0.0", port: int = 7860):
     """
