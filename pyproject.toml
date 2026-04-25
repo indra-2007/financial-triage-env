@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "financial-triage-env"
-version = "0.1.0"
+version = "0.2.0"
 description = "Personal Financial Triage & Life Budget Advisor — an OpenEnv environment for multi-day financial decision-making."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 dependencies = [
-    "openenv-core[core]>=0.2.2",
+    "openenv-core[core]>=0.2.3",
     "openai>=1.0.0",
     "pydantic>=2.0.0",
     "uvicorn>=0.27.0",

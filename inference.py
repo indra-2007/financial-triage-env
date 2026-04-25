@@ -123,7 +123,8 @@ def format_action(action: FinancialAction) -> str:
 # System prompt for the LLM financial advisor
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = textwrap.dedent("""\
-You are an AI financial advisor managing a person's finances day by day.
+You are an AI financial advisor managing an Indian household's finances day by day.
+All amounts are in Indian Rupees (INR). Salary is credited via UPI.
 Each day you must choose EXACTLY ONE action from the following list:
 
 ACTIONS:
@@ -134,22 +135,31 @@ ACTIONS:
 - pay_extra_debt(debt_id, amount)     → Pay extra toward a debt
 - transfer_to_savings(amount)         → Move money to savings
 - withdraw_emergency(amount)          → Move money from savings to checking
+- take_formal_loan(amount)            → Apply for SBI/HDFC bank loan (delayed, low APR)
+- take_informal_loan(amount)          → Take instant cash from local moneylender (DANGEROUS)
+- take_festive_loan(amount)           → Take a Diwali/festive season loan (only during festivals)
+- negotiate_bill(bill_id)             → Attempt to negotiate a bill reduction (40% success)
 
-RULES:
+CRITICAL RULES:
 1. You can only pick ONE action per day.
 2. Prioritize paying bills BEFORE their due date to avoid late fees.
-3. Pay high-APR debt minimums to avoid default (3 missed = default).
-4. Keep enough in checking to cover upcoming bills.
-5. Build savings when possible.
+3. Pay high-APR debt minimums to avoid default (3 missed = CIBIL crash).
+4. NEVER take informal loans — local moneylenders charge 240-365% APR.
+5. If a medical emergency appears, pay it IMMEDIATELY before the deadline.
+6. During Diwali, resist festive loans — pre-save instead of borrowing.
+7. Watch out for UPI micro-spends — they add up fast.
+8. Build savings as an emergency buffer.
 
 RESPONSE FORMAT:
 Reply with ONLY the action string on one line. Examples:
   do_nothing
   pay_bill_full(rent)
-  pay_minimum(cc_visa)
-  pay_extra_debt(cc_visa, 200.00)
-  transfer_to_savings(100.00)
-  withdraw_emergency(300.00)
+  pay_minimum(cc_hdfc)
+  pay_extra_debt(cc_hdfc, 5000)
+  transfer_to_savings(3000)
+  withdraw_emergency(10000)
+  take_formal_loan(50000)
+  negotiate_bill(health_insurance)
 
 Do NOT include any explanation, just the action string.
 """).strip()
@@ -159,10 +169,10 @@ def observation_to_prompt(obs: FinancialObservation) -> str:
     """Convert a FinancialObservation into a readable text prompt for the LLM."""
     lines = [
         f"=== Day {obs.current_day} of {obs.episode_length} ===",
-        f"Checking: ${obs.account.checking_balance:.2f}",
-        f"Savings:  ${obs.account.savings_balance:.2f}",
-        f"Credit Score: {obs.risk.credit_score}",
-        f"Net Worth: ${obs.net_worth:.2f}",
+        f"Checking: INR {obs.account.checking_balance:,.0f}",
+        f"Savings:  INR {obs.account.savings_balance:,.0f}",
+        f"CIBIL Score: {obs.risk.credit_score}",
+        f"Net Worth: INR {obs.net_worth:,.0f}",
         f"Next Salary: Day {obs.account.next_salary_day}",
         "",
     ]
@@ -176,11 +186,11 @@ def observation_to_prompt(obs: FinancialObservation) -> str:
             urgency = ""
             days_left = b.due_day - obs.current_day
             if days_left <= 0:
-                urgency = " ⚠️ OVERDUE"
+                urgency = " OVERDUE"
             elif days_left <= 2:
-                urgency = " ⚠️ DUE SOON"
+                urgency = " DUE SOON"
             lines.append(
-                f"  - {b.id}: ${b.amount:.2f} due day {b.due_day} "
+                f"  - {b.id}: INR {b.amount:,.0f} due day {b.due_day} "
                 f"({b.category}){urgency}"
             )
     if paid_bills:
@@ -193,21 +203,51 @@ def observation_to_prompt(obs: FinancialObservation) -> str:
         for d in sorted(obs.debts, key=lambda x: -x.apr):
             warning = ""
             if d.missed_payments >= 2:
-                warning = " 🚨 NEAR DEFAULT"
+                warning = " NEAR DEFAULT"
             elif d.missed_payments >= 1:
-                warning = " ⚠️ MISSED PAYMENT"
+                warning = " MISSED PAYMENT"
             lines.append(
-                f"  - {d.id}: ${d.principal:.2f} @ {d.apr}% APR, "
-                f"min ${d.minimum_due:.2f}, missed={d.missed_payments}{warning}"
+                f"  - {d.id}: INR {d.principal:,.0f} @ {d.apr}% APR, "
+                f"min INR {d.minimum_due:,.0f}, missed={d.missed_payments}{warning}"
             )
 
     # Risk
     lines.append("")
     lines.append("RISK SIGNALS:")
-    lines.append(f"  Interest today: ${obs.risk.interest_today:.2f}")
-    lines.append(f"  Late fee risk:  ${obs.risk.late_fee_risk:.2f}")
+    lines.append(f"  Interest today: INR {obs.risk.interest_today:,.0f}")
+    lines.append(f"  Late fee risk:  INR {obs.risk.late_fee_risk:,.0f}")
     if obs.risk.days_to_overdraft >= 0:
         lines.append(f"  Days to overdraft: {obs.risk.days_to_overdraft}")
+
+    # v2: Medical emergency
+    if obs.active_emergency and not obs.active_emergency.is_paid:
+        lines.append("")
+        lines.append("MEDICAL EMERGENCY:")
+        lines.append(f"  {obs.active_emergency.description}")
+        lines.append(f"  Amount: INR {obs.active_emergency.amount:,.0f}")
+        lines.append(f"  DEADLINE: Day {obs.active_emergency.deadline_day}")
+        days_left = obs.active_emergency.deadline_day - obs.current_day
+        lines.append(f"  Days remaining: {days_left} — PAY IMMEDIATELY")
+
+    # v2: Loan offers
+    if obs.loan_offers:
+        lines.append("")
+        lines.append("LOAN OPTIONS AVAILABLE:")
+        for lo in obs.loan_offers:
+            status = "ELIGIBLE" if lo.available else "NOT ELIGIBLE"
+            lines.append(
+                f"  - [{lo.loan_type}] {lo.label} | max INR {lo.max_amount:,.0f} | "
+                f"APR {lo.apr}% | {lo.processing_days}-day processing | {status}"
+            )
+
+    # v2: Festival season
+    if obs.festival:
+        lines.append("")
+        lines.append(f"FESTIVAL: {obs.festival.name} ({obs.festival.days_remaining} days left)")
+        lines.append(f"  Daily social cost: INR {obs.festival.daily_social_cost:,.0f}")
+        if obs.festival.pressure_message:
+            lines.append(f"  {obs.festival.pressure_message}")
+        lines.append(f"  Festive loans available at {obs.festival.festive_loan_apr}% APR — RESIST")
 
     # Today's summary
     if obs.daily_summary and obs.daily_summary != "No events":
@@ -301,6 +341,16 @@ def _try_parse_action_string(s: str, obs: FinancialObservation) -> Optional[Fina
         if action_name == "do_nothing":
             return FinancialAction(action_type=ActionType.DO_NOTHING)
 
+        # v2: New actions
+        if action_name == "take_formal_loan" and len(args) >= 1:
+            return FinancialAction(action_type=ActionType.TAKE_FORMAL_LOAN, amount=float(args[0]))
+        if action_name == "take_informal_loan" and len(args) >= 1:
+            return FinancialAction(action_type=ActionType.TAKE_INFORMAL_LOAN, amount=float(args[0]))
+        if action_name == "take_festive_loan" and len(args) >= 1:
+            return FinancialAction(action_type=ActionType.TAKE_FESTIVE_LOAN, amount=float(args[0]))
+        if action_name == "negotiate_bill" and len(args) >= 1:
+            return FinancialAction(action_type=ActionType.NEGOTIATE_BILL, bill_id=args[0])
+
     except (ValueError, TypeError):
         return None
 
@@ -310,46 +360,99 @@ def _try_parse_action_string(s: str, obs: FinancialObservation) -> Optional[Fina
 def _heuristic_action(obs: FinancialObservation) -> FinancialAction:
     """
     Fallback heuristic agent — used when LLM output can't be parsed.
-    Priority: pay urgent bills → pay debt mins → do nothing.
+    Priority: emergency → urgent bills → near-default debts → upcoming bills →
+              high-APR debts → emergency withdrawal → save surplus.
     """
-    # Priority 1: Pay bills due within 2 days
+    # Priority 0: Pay medical emergency ASAP — this is life or death
+    if obs.active_emergency and not obs.active_emergency.is_paid:
+        emg_bill = obs.active_emergency.id
+        emg_amount = obs.active_emergency.amount
+        # Can pay in full — do it immediately
+        if obs.account.checking_balance >= emg_amount:
+            return FinancialAction(action_type=ActionType.PAY_BILL_FULL, bill_id=emg_bill)
+        # Pull savings to build up checking
+        if obs.account.savings_balance > 200:
+            return FinancialAction(
+                action_type=ActionType.WITHDRAW_EMERGENCY,
+                amount=min(emg_amount, obs.account.savings_balance),
+            )
+        # Try formal loan to cover the gap
+        for lo in obs.loan_offers:
+            if lo.loan_type == "formal_bank" and lo.available:
+                needed = emg_amount - obs.account.checking_balance
+                return FinancialAction(
+                    action_type=ActionType.TAKE_FORMAL_LOAN,
+                    amount=min(max(needed, 10000), lo.max_amount),
+                )
+        # Emergency is ticking but we can't pay yet — DO NOTHING else
+        # to preserve cash. Don't waste money on debts while emergency is active.
+        days_left = obs.active_emergency.deadline_day - obs.current_day
+        if days_left > 0:
+            return FinancialAction(action_type=ActionType.DO_NOTHING)
+
+    # Priority 1: Pay OVERDUE bills immediately (avoid escalating fees)
+    for bill in sorted(obs.bills, key=lambda b: b.due_day):
+        if not bill.is_paid and bill.due_day <= obs.current_day:
+            if obs.account.checking_balance >= bill.amount:
+                return FinancialAction(
+                    action_type=ActionType.PAY_BILL_FULL, bill_id=bill.id
+                )
+
+    # Priority 2: Pay bills due within 2 days
     for bill in sorted(obs.bills, key=lambda b: b.due_day):
         if not bill.is_paid and bill.due_day <= obs.current_day + 2:
-            if obs.account.checking_balance >= bill.amount + 100:
+            if obs.account.checking_balance >= bill.amount + 500:
                 return FinancialAction(
                     action_type=ActionType.PAY_BILL_FULL, bill_id=bill.id
                 )
 
-    # Priority 2: Pay minimum on debts near default
+    # Priority 3: Pay minimum on debts near default (missed >= 2 first!)
+    for debt in sorted(obs.debts, key=lambda d: -d.missed_payments):
+        if debt.missed_payments >= 2 and debt.principal > 0:
+            if obs.account.checking_balance >= debt.minimum_due:
+                return FinancialAction(
+                    action_type=ActionType.PAY_MINIMUM, debt_id=debt.id
+                )
+
+    # Priority 4: Pay minimum on debts that have missed 1 payment
     for debt in sorted(obs.debts, key=lambda d: -d.missed_payments):
         if debt.missed_payments >= 1 and debt.principal > 0:
-            if obs.account.checking_balance > debt.minimum_due + 200:
+            if obs.account.checking_balance > debt.minimum_due + 1000:
                 return FinancialAction(
                     action_type=ActionType.PAY_MINIMUM, debt_id=debt.id
                 )
 
-    # Priority 3: Pay bills due within 5 days
+    # Priority 5: Pay bills due within 5 days
     for bill in sorted(obs.bills, key=lambda b: b.due_day):
         if not bill.is_paid and bill.due_day <= obs.current_day + 5:
-            if obs.account.checking_balance >= bill.amount + 300:
+            if obs.account.checking_balance >= bill.amount + 2000:
                 return FinancialAction(
                     action_type=ActionType.PAY_BILL_FULL, bill_id=bill.id
                 )
 
-    # Priority 4: Pay minimums on highest-APR debts
+    # Priority 6: Pay minimums on highest-APR debts (even if not missed yet)
     for debt in sorted(obs.debts, key=lambda d: -d.apr):
         if debt.principal > 0:
-            if obs.account.checking_balance > debt.minimum_due + 500:
+            if obs.account.checking_balance > debt.minimum_due + 3000:
                 return FinancialAction(
                     action_type=ActionType.PAY_MINIMUM, debt_id=debt.id
                 )
 
-    # Priority 5: Emergency withdrawal if checking very low
-    if obs.account.checking_balance < 200 and obs.account.savings_balance > 100:
+    # Priority 7: Emergency withdrawal if checking dangerously low
+    if obs.account.checking_balance < 3000 and obs.account.savings_balance > 1000:
         return FinancialAction(
             action_type=ActionType.WITHDRAW_EMERGENCY,
-            amount=min(300.0, obs.account.savings_balance),
+            amount=min(8000.0, obs.account.savings_balance),
         )
+
+    # Priority 8: Save surplus if balance is healthy
+    if obs.account.checking_balance > 30000:
+        save_amount = min(5000.0, obs.account.checking_balance - 25000)
+        if save_amount >= 500:
+            return FinancialAction(
+                action_type=ActionType.TRANSFER_TO_SAVINGS,
+                amount=round(save_amount, 0),
+            )
 
     return FinancialAction(action_type=ActionType.DO_NOTHING)
 

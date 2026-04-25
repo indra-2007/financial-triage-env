@@ -48,7 +48,7 @@ app = create_app(
     MyEnvironment,
     MyAction,
     MyObservation,
-    env_name="my_env",
+    env_name="financial_triage",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 

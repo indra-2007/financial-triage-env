@@ -1,18 +1,20 @@
 spec_version: 1
 name: financial_triage
 description: >
-  Personal Financial Triage & Life Budget Advisor.
-  A realistic personal finance simulation where an AI agent manages cash flow,
-  bills, debts, interest accumulation, credit score dynamics, and emergency
-  expenses over multi-day episodes. 1 step = 1 day.
+  Personal Financial Triage & Life Budget Advisor — a realistic Indian household
+  finance survival simulator where an AI agent manages UPI-based cash flow, bills,
+  debts, CIBIL score dynamics, predatory lending traps, medical emergencies, and
+  Diwali social pressure over multi-day episodes. All amounts in INR.
+  Features 14 dense reward signals, anti-reward-hacking protections, UPI micro-
+  transaction simulation, and 11 action types. 1 step = 1 day.
 type: space
 runtime: fastapi
 app: server.app:app
 port: 7860
 tasks:
   - id: easy
-    description: "30-day episode. Stable bi-weekly income, 3 bills, no debt. Goal: pay bills on time."
+    description: "30-day episode. Fresh graduate, stable INR 30,000/month salary via UPI. Three bills (rent, electricity, mobile). Goal: pay bills on time, build savings."
   - id: medium
-    description: "60-day episode. Irregular income, 5 bills, 3 debts. Goal: minimize interest."
+    description: "60-day episode. Mid-career INR 55,000 + freelance. HDFC CC at 42% APR, SBI loan EMI, Flipkart BNPL. Loan shark trap (240% APR), medical emergency INR 75,000. Goal: survive without predatory debt."
   - id: hard
-    description: "90-day episode. Job loss at day 30, 6 bills, 4 debts, emergencies. Goal: survive."
+    description: "90-day episode. Job loss at day 30 (INR 65K to 28K gig income). Four debts totaling INR 7.3L. 365% APR moneylender, 2 medical emergencies (INR 50K + 35K), Diwali social pressure. Goal: survive without destroying CIBIL."

@@ -1,328 +1,229 @@
----
-title: Financial Triage Environment
-emoji: 💰
-colorFrom: green
-colorTo: blue
-sdk: docker
-app_port: 7860
-tags:
-  - openenv
----
+# 🏥💰 Financial Triage: Can AI Survive 90 Days of India's Financial Crisis?
 
-# Personal Financial Triage & Life Budget Advisor
-
-🔗 **Live Environment**
-https://huggingface.co/spaces/indra-dhanush/financial-triage-env
-
-A production-grade OpenEnv environment simulating real-world personal financial decision-making.
-An AI agent operates inside a household financial system and must make daily decisions to balance liquidity, debt, and long-term stability.
+> *"We built an RL environment trained on India's most widespread crisis — 73% of the population financially illiterate, facing salary delays and debt traps daily. Our agent learns what most Indians were never taught."*
 
 ---
 
-## 🧠 Why this matters
+## The Problem That Kills
 
-Financial decision-making affects every human. Poor decisions compound over time through interest, penalties, and missed obligations.
+**73% of Indian adults fail the RBI's minimum financial literacy threshold.**
 
-This environment models:
+India's household debt has reached 45.5% of GDP — and it's not building wealth. It's funding consumption. Personal loans, credit cards, and BNPL schemes now account for **54.9% of total household debt**, consuming 25.7% of disposable income. Credit card outstanding surged from ₹87,686 crore (2019) to **₹2,70,000 crore** (2024) — a 17% real CAGR.
 
-* real bank balances
-* upcoming bills
-* debt with APR
-* income uncertainty
-* credit score dynamics
+The cost isn't just economic — it's mortal. The NCRB recorded 171,418 suicides in India in 2023. **66% of victims earned ₹1 lakh or less annually.** Financial insecurity, bankruptcy, and indebtedness are direct causes.
 
-Unlike static benchmarks, this environment captures long-term financial consequences, making it ideal for evaluating real-world AI agents.
+27% of India's microfinance borrowers take new loans just to repay old ones — the exact debt trap this environment simulates. India's Gen Z accounts for 43% of consumer spending while growing up without basic money management skills.
 
----
+Current fintech apps — CRED, Jupiter, Fi Money — show beautiful pie charts. They gamify your credit score. They alert you when a bill is due.
 
-## 🧠 Agent Challenge
+**But they don't make decisions.**
 
-**Can an AI survive 90 days of financial stress without going bankrupt?**
+When you have ₹15,000 in your account, rent of ₹12,000, a HDFC credit card minimum of ₹7,500, and a SBI EMI of ₹8,000 — a push notification saying you're "over budget" is **utterly useless**. You need to know: *which bill do I default on to minimize long-term damage to my CIBIL score?*
+
+That is not a prediction problem. That is a **sequential decision-making problem under uncertainty over time.** The only mathematical framework designed to solve it is **Reinforcement Learning**.
 
 ---
 
-## ⚙️ Environment Overview
+## What This Environment Does
 
-* **1 step = 1 day**
+Financial Triage is an OpenEnv-compliant RL environment that simulates **real-world Indian personal finance survival** — calibrated against actual RBI, NSSO, and NPCI data. All amounts are in **Indian Rupees (₹)**.
 
-### Episodes:
+The agent manages a household's finances **one day at a time**, choosing from **11 action types** across a multi-day episode:
 
-* Easy → 30 days
-* Medium → 60 days
-* Hard → 90 days
+| Action | What It Does |
+|--------|-------------|
+| `pay_bill_full(bill_id)` | Pay a bill in full from checking |
+| `pay_minimum(debt_id)` | Make minimum payment on a debt |
+| `pay_extra_debt(debt_id, amount)` | Accelerate debt payoff (avalanche strategy) |
+| `transfer_to_savings(amount)` | Build emergency buffer |
+| `withdraw_emergency(amount)` | Liquidate savings when cash-strapped |
+| `take_formal_loan(amount)` | Apply for SBI/HDFC bank loan (14-18% APR, delayed) |
+| `take_informal_loan(amount)` | ⚠️ Take instant cash from local moneylender (240-365% APR) |
+| `take_festive_loan(amount)` | 🎉 Diwali loan ("low EMI" but 28% APR) |
+| `negotiate_bill(bill_id)` | Attempt to negotiate a bill reduction (40% chance) |
+| `defer_bill(bill_id)` | Explicitly defer a bill payment |
+| `do_nothing` | Take no action today |
 
-The agent must continuously decide how to allocate limited resources under uncertainty.
+### Three Difficulty Levels
 
----
-
-## 👁 Observation Space
-
-At every step, the agent sees:
-
-### Account State
-
-* checking_balance
-* savings_balance
-* credit_utilization
-* next_salary_day
-
-### Bills
-
-* amount
-* due date
-* category
-* payment status
-
-### Debt Stack
-
-* principal
-* APR
-* minimum due
-* missed payments
-
-### Risk Signals
-
-* days_to_overdraft
-* interest_today
-* late_fee_risk
-* credit_score
-
-### Time
-
-* current_day
+| Level | Duration | Income | Debts | Special Events |
+|-------|----------|--------|-------|----------------|
+| **Easy** | 30 days | ₹30,000/month via UPI | None | UPI micro-spends |
+| **Medium** | 60 days | ₹55,000 + ₹20,000 freelance | HDFC CC (42%), SBI EMI, Flipkart BNPL | 🦈 Loan shark, 🚨 Medical ₹75K |
+| **Hard** | 90 days | Job loss at day 30 → ₹28K gig income | 4 debts (₹7.3L total) | 🦈 365% APR, 🚨 2 emergencies (₹50K + ₹35K), 🎉 Diwali |
 
 ---
 
-## 🎯 Action Space
+## 📱 UPI Micro-Transaction Simulation
 
-The agent can take actions such as:
+India processes **14+ billion UPI transactions per month** (NPCI, 2024). The #1 silent killer of Indian household budgets isn't big expenses — it's the ₹200 Swiggy order, the ₹50 chai, the ₹150 auto-rickshaw, the ₹499 Blinkit order, multiplied by 30 days.
 
-* pay_bill_full(bill_id)
-* pay_minimum(debt_id)
-* defer_bill(bill_id)
-* pay_extra_debt(debt_id, amount)
-* transfer_to_savings(amount)
-* withdraw_emergency(amount)
-* do_nothing()
+Our environment simulates **real UPI spending patterns**:
 
-All actions are validated and affect future financial states.
+| Feature | What It Does |
+|---------|-------------|
+| **Daily micro-spends** | ₹100-₹800/day on Swiggy, Zomato, chai, auto, Blinkit (stochastic) |
+| **UPI P2P pressure** | Friends/family request UPI transfers at random intervals |
+| **Salary as UPI credit** | Income arrives as UPI credit on configured days |
+| **UPI autopay drain** | OTT subscriptions auto-deduct via UPI mandate |
 
----
-
-## 🔥 What makes this environment hard
-
-### ⏳ Delayed consequences
-
-A decision made early in the episode can have cascading effects weeks later.
-
-### ⚖️ Competing priorities
-
-The agent must balance:
-
-* rent vs debt
-* savings vs liquidity
-* short-term survival vs long-term optimization
-
-### 🎲 Uncertainty
-
-* salary may be delayed or vary
-* unexpected expenses occur
-* financial plans cannot be deterministic
+The agent must learn: *these ₹300/day micro-transactions compound to ₹9,000/month* — nearly 30% of a fresh graduate's salary. Controlling UPI drain is a survival skill.
 
 ---
 
-## 💰 Reward Design Philosophy
+## 🦈 The Loan Shark Trap
 
-The environment provides **dense daily rewards**.
+Private moneylenders across India charge **1-10% daily interest** — that's 365-3,650% APR. When the agent hits a cash crisis, two loan options appear:
 
-### Positive signals:
+| Option | Label | APR | Delivery | CIBIL Check |
+|--------|-------|-----|----------|-------------|
+| **SBI Loan** | "SBI Personal Loan — 14% APR" | 14% | 3 days | Requires score ≥ 650 |
+| **Moneylender** | "Instant cash — no paperwork" | **365%** | Instant | None |
 
-* avoiding overdraft
-* paying bills on time
-* reducing high-APR debt
-* growing savings
-* improving credit score
+An untrained model reads "instant" and takes the moneylender. A **trained** agent waits 3 days for the bank loan. This maps directly to the decision 27% of Indian microfinance borrowers face when they take new loans to repay old ones.
 
-### Negative signals:
+## 🚨 Medical Emergency Shock
 
-* overdraft penalties
-* late payments
-* interest accumulation
-* missed obligations
+NSSO data shows mean out-of-pocket cost per private hospitalization is **₹1,69,504**. Even a median case drains months of salary.
 
-Each step includes a detailed:
+The environment injects a mandatory medical bill (₹35,000–₹50,000) with a **5-day deadline**. If unpaid:
+- CIBIL score drops 30 points
+- 20% penalty fee
+- Emergency marked as failed
 
-👉 **reward_breakdown**
+The agent learns: **maintaining a savings buffer isn't optional — it's a matter of survival.**
 
-This ensures transparency and interpretability.
+## 🎉 Diwali Season Pressure
 
----
+India's Diwali alone generates **₹85,000 crore** in consumer spending. Banks flood consumers with "0% EMI festive offers" that compound for years.
 
-## 🧪 Tasks
+During the Diwali window, the environment:
+1. Auto-deducts ₹1,500/day for social obligations (gifts, sweets, clothes)
+2. Broadcasts WhatsApp-style social pressure messages
+3. Makes festive loans temporarily available ("Diwali Dhamaka Loan" at 28% APR)
 
-### 🟢 Easy — Stability
-
-* Stable income
-* Few bills
-* No debt
-* Goal: avoid overdraft
+The agent must learn to **pre-save before Diwali** instead of borrowing during it.
 
 ---
 
-### 🟡 Medium — Debt Management
+## 🛡️ Anti-Reward-Hacking Protections
 
-* Multiple debts with different APR
-* Irregular income
-
-Goal:
-
-* minimize interest
-* avoid missed payments
-
----
-
-### 🔴 Hard — Survival Mode
-
-* Job loss mid-episode
-* Reduced income
-* Multiple creditors
-
-Goal:
-
-* avoid default
-* maintain credit score > 650
-* rebuild savings
+| Protection | What It Prevents |
+|------------|-----------------|
+| **Minimum transfer threshold** (₹500) | Farming savings_growth reward with ₹1 transfers |
+| **Savings churn detection** | Withdraw-and-redeposit same day for free reward |
+| **Consecutive inaction penalty** | Doing nothing 3+ days to avoid risk |
+| **Predatory loan penalty** | Ongoing -8.0 per step while carrying moneylender debt |
+| **Action diversity bonus** | Rewards using 3+ different action types in 7 days |
+| **Emergency buffer bonus** | Rewards maintaining liquidity above upcoming obligations |
 
 ---
 
-## 📊 Evaluation Metrics
+## 📊 Dense Reward System — 14 Components
 
-Agents are scored using smooth metrics:
-
-* Overdraft avoidance
-* Interest minimization
-* Credit score stability
-* Savings growth
-
-Scores range from **0.0 → 1.0** and reward partial success.
-
----
-
-## 📊 Baseline Performance
-
-Heuristic agent scores:
-
-* Easy: ~0.93
-* Medium: ~0.56
-* Hard: ~0.40
-
-This demonstrates increasing difficulty and clear headroom for advanced agents.
-
----
-
-## 🔌 API Usage (OpenEnv)
-
-### Reset environment
-
-POST /reset
-
-Example:
-{
-"task_id": "hard"
-}
-
----
-
-### Step environment
-
-POST /step
-
-Example:
-{
-"action": {
-"action_type": "pay_minimum",
-"debt_id": "cc_platinum"
-}
-}
-
----
-
-### Get current state
-
-GET /state
-
----
-
-## 🚀 Setup & Running the Environment
-
-### Install dependencies
-
-```bash
-pip install -r requirements.txt
+```
+Positive Signals                    Negative Signals
+─────────────────                   ─────────────────
++5.0   No overdraft                 -15.0  Per late payment
++10.0  Per bill paid on time        -25.0  Overdraft
++var   High-APR debt payment        -2.0x  Interest accrued
++6.0   Savings growth (>₹500)       -50.0  Per default
++0.5x  CIBIL score improvement      -5.0   Zero savings
++3.0   Emergency buffer maintained  -8.0   Carrying moneylender debt
++1.0   Action diversity             -2.0n  Consecutive inaction
 ```
 
-### Validate OpenEnv compliance
+---
 
+## 🚀 Quick Start
+
+### Run Locally
 ```bash
-openenv validate
+git clone https://huggingface.co/spaces/indra-dhanush/financial-triage-env
+cd financial-triage-env
+pip install -e ".[dev]"
+uvicorn server.app:app --reload --host 0.0.0.0 --port 7860
 ```
 
-### Run inference (heuristic baseline)
-
+### Run via Docker
 ```bash
-python inference.py
+docker build -t financial-triage .
+docker run -p 7860:7860 financial-triage
 ```
 
-### Run inference (with LLM)
+### Use from OpenEnv Client
+```python
+from openenv import EnvClient
 
-```bash
-export API_BASE_URL="https://router.huggingface.co/v1"
-export MODEL_NAME="meta-llama/Llama-3.3-70B-Instruct"
-export HF_TOKEN="your-huggingface-token"
-python inference.py
+env = EnvClient.from_hub("indra-dhanush/financial-triage-env")
+obs = env.reset(task_id="hard")
+print(obs.account.checking_balance)  # 25000.0 (INR)
+print(obs.loan_offers)              # SBI bank vs local moneylender
 ```
-
-### Docker
-
-```bash
-docker build -t financial-triage-env .
-docker run -p 7860:7860 financial-triage-env
-```
-
-The server will be available at `http://localhost:7860`.
 
 ---
 
-## ⚡ Key Features
+## 🏗️ Architecture
 
-* deterministic randomness (seeded)
-* realistic financial dynamics
-* dense reward shaping
-* interpretable reward breakdown
-* fast simulation (<1s per episode)
+```
+financial-triage-env/
+├── openenv.yaml                 # OpenEnv manifest (3 tasks)
+├── models.py                    # Pydantic models: 11 actions, rich observations
+├── tasks.py                     # Task configs (INR) + deterministic graders
+├── inference.py                 # LLM agent + UPI-aware heuristic fallback
+├── server/
+│   ├── app.py                   # FastAPI server (port 7860)
+│   └── my_env_environment.py    # Core simulation engine (~1200 lines)
+├── Dockerfile                   # Production container
+└── pyproject.toml               # Dependencies (openenv-core ≥0.2.3)
+```
+
+### Grading System
+
+| Task | Criteria | Weight |
+|------|----------|--------|
+| **Easy** | Overdraft avoidance | 30% |
+| | Bill payments on time | 35% |
+| | Savings growth | 20% |
+| | CIBIL maintained | 15% |
+| **Medium** | +Interest minimization | 20% |
+| | +Financial wisdom (avoided predatory debt) | 15% |
+| **Hard** | +Crisis management (emergencies survived) | 15% |
+| | +Temptation resistance (Diwali loans avoided) | 10% |
 
 ---
 
-## 🧠 Why this environment is novel
+## 🎯 Why This Matters for India
 
-* Not a toy problem
-* Not classification or QA
-* Full sequential decision-making system
-* Dense reward RL environment
-* Direct real-world applicability
+This environment trains AI agents to do what **no existing Indian fintech app does**: make the mathematically optimal financial decision **every single day**, across a multi-step horizon of competing obligations.
 
-This environment can directly power real financial assistant systems.
+An agent trained on Financial Triage learns:
+- **UPI micro-leak control** — ₹300/day on food delivery compounds to ₹9,000/month
+- **Avalanche debt payoff** — pay HDFC CC (42% APR) before SBI loan (14% APR)
+- **Predatory lending recognition** — "instant cash" at 365% APR is never worth it
+- **Medical buffer maintenance** — keep ₹25,000+ liquid for the ₹50K shock
+- **Diwali resistance** — pre-save ₹10,000 before the festival instead of borrowing ₹50,000 after
+- **BNPL trap avoidance** — Flipkart/Amazon Pay Later's 0% converts to 36% when overdue
+
+> *For 51% of Indians struggling to meet their debts and liabilities — far exceeding the global average of 32% — AI-driven financial triage isn't a technological curiosity. It's a mathematical imperative for survival.*
 
 ---
 
-## 🏁 Summary
+## 📜 License
 
-This environment provides a realistic, high-signal benchmark for evaluating AI agents in long-horizon financial decision-making.
+MIT License. Built for the [OpenEnv Hackathon](https://huggingface.co/openenv).
 
-It combines:
+## 🔗 Links
 
-* real-world utility
-* technical depth
-* RL-friendly design
+- **Live Environment**: [HuggingFace Space](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)
+- **OpenEnv Framework**: [openenv-core](https://pypi.org/project/openenv-core/)
 
-making it suitable for both research and deployment.
+## 📊 Data Sources
+
+All financial parameters are calibrated against real Indian data:
+- **RBI Financial Literacy Survey** (2024) — 27% adult literacy rate
+- **NSSO Health Expenditure** — ₹1,69,504 mean OOP hospitalization cost
+- **TransUnion CIBIL** — Credit card delinquency at 15% (90+ DPD)
+- **NPCI** — 14B+ UPI transactions/month, merchant category distributions
+- **NCRB Suicide Data** (2023) — 66% of victims earned ≤₹1L/year
+- **Asian Development Bank** — 24% female financial literacy rate

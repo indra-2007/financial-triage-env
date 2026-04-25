@@ -27,10 +27,12 @@ from openenv.core.env_server.types import State
 try:
     from ..models import ActionType, FinancialAction, FinancialObservation
     from ..models import AccountInfo, BillInfo, DebtInfo, RiskSignals
+    from ..models import LoanOffer, MedicalEmergencyInfo, FestivalInfo
     from ..tasks import get_task_config, grade_episode
 except ImportError:
     from models import ActionType, FinancialAction, FinancialObservation
     from models import AccountInfo, BillInfo, DebtInfo, RiskSignals
+    from models import LoanOffer, MedicalEmergencyInfo, FestivalInfo
     from tasks import get_task_config, grade_episode
 
 
@@ -54,6 +56,7 @@ class MyEnvironment(Environment):
         self._task_id: str = "easy"
         self._episode_length: int = 30
         self._current_day: int = 0
+        self._rng = random.Random(0)
 
         # Finances
         self._checking: float = 0.0
@@ -84,6 +87,25 @@ class MyEnvironment(Environment):
         self._today_defaults: int = 0
         self._today_debt_reward: float = 0.0
 
+        # v2: Loan system
+        self._loan_config: Optional[Dict[str, Any]] = None
+        self._pending_formal_loans: List[Dict[str, Any]] = []
+
+        # v2: Medical emergency system
+        self._medical_emergencies_config: List[Dict[str, Any]] = []
+        self._active_medical_emergency: Optional[Dict[str, Any]] = None
+
+        # v2: Festival system
+        self._festival_windows: List[Dict[str, Any]] = []
+        self._active_festival: Optional[Dict[str, Any]] = None
+
+        # v2: Anti-reward-hacking
+        self._consecutive_do_nothing: int = 0
+        self._action_history: List[str] = []
+        self._savings_withdrawn_today: bool = False
+        self._savings_deposited_today: bool = False
+        self._negotiated_bills: set = set()
+
         # Episode history for grading (initialized with defaults for safety)
         self._history: Dict[str, Any] = {
             "overdraft_days": 0,
@@ -96,6 +118,11 @@ class MyEnvironment(Environment):
             "initial_credit_score": 700,
             "initial_savings": 0.0,
             "daily_rewards": [],
+            "informal_loans_taken": 0,
+            "formal_loans_taken": 0,
+            "festive_loans_taken": 0,
+            "emergencies_survived": 0,
+            "emergencies_failed": 0,
         }
 
     # -------------------------------------------------------------------------
@@ -166,12 +193,40 @@ class MyEnvironment(Environment):
             "initial_credit_score": self._credit_score,
             "initial_savings": self._savings,
             "daily_rewards": [],
+            "informal_loans_taken": 0,
+            "formal_loans_taken": 0,
+            "festive_loans_taken": 0,
+            "emergencies_survived": 0,
+            "emergencies_failed": 0,
         }
 
         # Generate cycle-0 bills
         self._current_cycle = 0
         self._active_bills = []
         self._generate_cycle_bills(0)
+
+        # v2: Initialize loan system
+        self._loan_config = config.get("loan_config")
+        self._pending_formal_loans = []
+
+        # v2: Initialize medical emergency system
+        self._medical_emergencies_config = copy.deepcopy(config.get("medical_emergencies", []))
+        self._active_medical_emergency = None
+
+        # v2: Initialize festival system
+        self._festival_windows = copy.deepcopy(config.get("festival_windows", []))
+        self._active_festival = None
+
+        # v2: Anti-reward-hacking state
+        self._consecutive_do_nothing = 0
+        self._action_history = []
+        self._savings_withdrawn_today = False
+        self._savings_deposited_today = False
+        self._negotiated_bills = set()
+
+        # UPI: Initialize micro-transaction simulation
+        self._upi_config = config.get("upi_config")
+        self._upi_total_micro_spend = 0.0
 
         # Snapshot for delta tracking
         self._yesterday_savings = self._savings
@@ -201,6 +256,9 @@ class MyEnvironment(Environment):
         self._today_debt_reward = 0.0
         self._yesterday_savings = self._savings
         self._yesterday_credit_score = self._credit_score
+        # v2: Reset daily anti-churn flags
+        self._savings_withdrawn_today = False
+        self._savings_deposited_today = False
 
         # 1. Process begin-of-day events (salary, expenses, new cycle)
         self._process_begin_of_day()
@@ -279,7 +337,7 @@ class MyEnvironment(Environment):
             if entry["day"] == day:
                 self._checking += entry["amount"]
                 self._today_events.append(
-                    f"Income: ${entry['amount']:.2f} ({entry['label']})"
+                    f"Income: ₹{entry['amount']:.0f} ({entry['label']})"
                 )
 
         # Process expense events
@@ -287,14 +345,14 @@ class MyEnvironment(Environment):
             if evt["day"] == day:
                 self._checking -= evt["amount"]
                 self._today_events.append(
-                    f"Expense: ${evt['amount']:.2f} ({evt['description']})"
+                    f"Expense: ₹{evt['amount']:.0f} ({evt['description']})"
                 )
 
-        # Real-world uncertainty: occasional random unexpected expense
-        if self._rng.random() < 0.02:  # 2% chance each day for a minor emergency
-            expense = round(self._rng.uniform(20.0, 150.0), 2)
+        # Real-world uncertainty: occasional random unexpected expense (INR)
+        if self._rng.random() < 0.02:  # 2% chance each day
+            expense = round(self._rng.uniform(500.0, 5000.0), 2)
             self._checking -= expense
-            self._today_events.append(f"Unexpected random expense: ${expense:.2f}")
+            self._today_events.append(f"Unexpected expense: ₹{expense:.0f}")
 
         # New billing cycle check (every 30 days)
         new_cycle = day // 30
@@ -311,6 +369,101 @@ class MyEnvironment(Environment):
             daily_savings_rate = 0.005 / 365.0
             interest_earned = self._savings * daily_savings_rate
             self._savings += interest_earned
+
+        # UPI: Daily micro-transactions (chai, auto, Swiggy, etc.)
+        if self._upi_config:
+            prob = self._upi_config.get("micro_spend_probability", 0.5)
+            if self._rng.random() < prob:
+                lo, hi = self._upi_config.get("daily_micro_spend_range", [100, 400])
+                spend = round(self._rng.uniform(lo, hi), 0)
+                cats = self._upi_config.get("categories", ["upi_merchant"])
+                cat = cats[day % len(cats)]
+                self._checking -= spend
+                self._upi_total_micro_spend += spend
+                self._today_events.append(
+                    f"📱 UPI: ₹{spend:.0f} ({cat})"
+                )
+            # P2P pressure: friends/family asking for money
+            p2p_days = self._upi_config.get("p2p_pressure_days", [])
+            p2p_amounts = self._upi_config.get("p2p_amounts", [])
+            for i, pd in enumerate(p2p_days):
+                if day == pd and i < len(p2p_amounts):
+                    amt = p2p_amounts[i]
+                    self._checking -= amt
+                    self._today_events.append(
+                        f"📱 UPI P2P: Friend/family requested ₹{amt:.0f} — sent via PhonePe"
+                    )
+
+        # v2: Deliver pending formal loans
+        delivered = []
+        for loan in self._pending_formal_loans:
+            if day >= loan["delivery_day"]:
+                self._checking += loan["amount"]
+                self._today_events.append(
+                    f"💰 Bank loan of ₹{loan['amount']:.0f} deposited (APR: {loan['apr']}%)"
+                )
+                delivered.append(loan)
+        for loan in delivered:
+            self._pending_formal_loans.remove(loan)
+
+        # v2: Trigger medical emergencies
+        for emg in self._medical_emergencies_config:
+            if emg["trigger_day"] == day and self._active_medical_emergency is None:
+                deadline = day + emg["deadline_days"]
+                self._active_medical_emergency = {
+                    "id": f"medical_emergency_{day}",
+                    "amount": emg["amount"],
+                    "deadline_day": deadline,
+                    "description": emg["description"],
+                    "is_paid": False,
+                }
+                # Add as a special urgent bill
+                self._active_bills.append({
+                    "id": f"medical_emergency_{day}",
+                    "amount": emg["amount"],
+                    "due_day": deadline,
+                    "category": "medical",
+                    "is_paid": False,
+                })
+                self._history["total_bills_generated"] += 1
+                self._today_events.append(
+                    f"🚨 MEDICAL EMERGENCY: {emg['description']} — "
+                    f"₹{emg['amount']:.0f} due by day {deadline}"
+                )
+
+        # v2: Check medical emergency deadline failure
+        if (self._active_medical_emergency
+                and not self._active_medical_emergency["is_paid"]
+                and day > self._active_medical_emergency["deadline_day"]):
+            self._history["emergencies_failed"] += 1
+            self._credit_score = max(300, self._credit_score - 30)
+            penalty = self._active_medical_emergency["amount"] * 0.20
+            self._checking -= penalty
+            self._history["total_late_fees"] += penalty
+            self._today_events.append(
+                f"🚨 EMERGENCY UNPAID — penalty ₹{penalty:.0f}, credit score -30"
+            )
+            self._active_medical_emergency = None
+
+        # v2: Festival season activation and social costs
+        for fw in self._festival_windows:
+            if fw["start_day"] <= day <= fw["end_day"]:
+                self._active_festival = fw
+                # Mandatory daily social cost
+                social_cost = fw["daily_social_cost"]
+                if social_cost > 0:
+                    self._checking -= social_cost
+                    self._today_events.append(
+                        f"🎉 {fw['name']}: social obligations cost ₹{social_cost:.0f}"
+                    )
+                # Pressure message
+                msgs = fw.get("pressure_messages", [])
+                if msgs:
+                    msg = msgs[day % len(msgs)]
+                    self._today_events.append(f"📢 {msg}")
+                break
+            elif day > fw["end_day"] and self._active_festival == fw:
+                self._active_festival = None
 
     def _generate_cycle_bills(self, cycle: int) -> None:
         """Generate active bills for a 30-day cycle from templates."""
@@ -337,20 +490,45 @@ class MyEnvironment(Environment):
         """Execute the agent's chosen action with full validation."""
         at = action.action_type
 
+        # v2: Track action history for anti-reward-hacking
+        self._action_history.append(at.value)
+        if len(self._action_history) > 10:
+            self._action_history = self._action_history[-10:]
+
         if at == ActionType.PAY_BILL_FULL:
             self._action_pay_bill(action.bill_id)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.PAY_MINIMUM:
             self._action_pay_minimum(action.debt_id)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.DEFER_BILL:
             self._action_defer_bill(action.bill_id)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.PAY_EXTRA_DEBT:
             self._action_pay_extra_debt(action.debt_id, action.amount)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.TRANSFER_TO_SAVINGS:
             self._action_transfer_to_savings(action.amount)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.WITHDRAW_EMERGENCY:
             self._action_withdraw_emergency(action.amount)
+            self._consecutive_do_nothing = 0
         elif at == ActionType.DO_NOTHING:
+            self._consecutive_do_nothing += 1
             self._today_events.append("No action taken")
+        # v2: New actions
+        elif at == ActionType.TAKE_FORMAL_LOAN:
+            self._action_take_formal_loan(action.amount)
+            self._consecutive_do_nothing = 0
+        elif at == ActionType.TAKE_INFORMAL_LOAN:
+            self._action_take_informal_loan(action.amount)
+            self._consecutive_do_nothing = 0
+        elif at == ActionType.TAKE_FESTIVE_LOAN:
+            self._action_take_festive_loan(action.amount)
+            self._consecutive_do_nothing = 0
+        elif at == ActionType.NEGOTIATE_BILL:
+            self._action_negotiate_bill(action.bill_id)
+            self._consecutive_do_nothing = 0
 
     def _action_pay_bill(self, bill_id: str) -> None:
         bill = self._find_active_bill(bill_id)
@@ -363,7 +541,7 @@ class MyEnvironment(Environment):
         if self._checking < bill["amount"]:
             self._today_events.append(
                 f"Insufficient funds for bill '{bill_id}' "
-                f"(need ${bill['amount']:.2f}, have ${self._checking:.2f})"
+                f"(need ₹{bill['amount']:.0f}, have ₹{self._checking:.0f})"
             )
             return
 
@@ -374,12 +552,20 @@ class MyEnvironment(Environment):
             self._today_on_time_payments += 1
             self._history["on_time_payment_count"] += 1
             self._today_events.append(
-                f"Paid bill '{bill_id}' (${bill['amount']:.2f}) ON TIME"
+                f"Paid bill '{bill_id}' (₹{bill['amount']:.0f}) ON TIME"
             )
         else:
             self._today_events.append(
-                f"Paid bill '{bill_id}' (${bill['amount']:.2f}) LATE"
+                f"Paid bill '{bill_id}' (₹{bill['amount']:.0f}) LATE"
             )
+
+        # v2: Mark medical emergency as paid if this was an emergency bill
+        if (self._active_medical_emergency
+                and self._active_medical_emergency["id"] == bill_id):
+            self._active_medical_emergency["is_paid"] = True
+            self._history["emergencies_survived"] += 1
+            self._today_events.append("✅ Medical emergency resolved!")
+            self._active_medical_emergency = None
 
     def _action_pay_minimum(self, debt_id: str) -> None:
         debt = self._find_debt(debt_id)
@@ -397,7 +583,7 @@ class MyEnvironment(Environment):
         if self._checking < payment:
             self._today_events.append(
                 f"Insufficient funds for minimum on '{debt_id}' "
-                f"(need ${payment:.2f}, have ${self._checking:.2f})"
+                f"(need ₹{payment:.0f}, have ₹{self._checking:.0f})"
             )
             return
 
@@ -406,8 +592,8 @@ class MyEnvironment(Environment):
         debt["min_paid_this_cycle"] = True
         self._today_debt_reward += payment * (debt["apr"] / 100.0) * 0.5
         self._today_events.append(
-            f"Paid minimum ${payment:.2f} on debt '{debt_id}' "
-            f"(remaining: ${debt['principal']:.2f})"
+            f"Paid minimum ₹{payment:.0f} on debt '{debt_id}' "
+            f"(remaining: ₹{debt['principal']:.0f})"
         )
 
     def _action_defer_bill(self, bill_id: str) -> None:
@@ -416,7 +602,7 @@ class MyEnvironment(Environment):
             self._today_events.append(f"Bill '{bill_id}' not found")
             return
         self._today_events.append(
-            f"Deferred bill '{bill_id}' (${bill['amount']:.2f}, due day {bill['due_day']})"
+            f"Deferred bill '{bill_id}' (₹{bill['amount']:.0f}, due day {bill['due_day']})"
         )
 
     def _action_pay_extra_debt(self, debt_id: str, amount: float) -> None:
@@ -442,19 +628,20 @@ class MyEnvironment(Environment):
             debt["min_paid_this_cycle"] = True
         self._today_debt_reward += actual * (debt["apr"] / 100.0) * 0.5
         self._today_events.append(
-            f"Extra payment ${actual:.2f} on '{debt_id}' "
-            f"(remaining: ${debt['principal']:.2f})"
+            f"Extra payment ₹{actual:.0f} on '{debt_id}' "
+            f"(remaining: ₹{debt['principal']:.0f})"
         )
 
     def _action_transfer_to_savings(self, amount: float) -> None:
         if self._checking < amount:
             self._today_events.append(
-                f"Insufficient funds to transfer ${amount:.2f} to savings"
+                f"Insufficient funds to transfer ₹{amount:.0f} to savings"
             )
             return
         self._checking -= amount
         self._savings += amount
-        self._today_events.append(f"Transferred ${amount:.2f} to savings")
+        self._savings_deposited_today = True
+        self._today_events.append(f"Transferred ₹{amount:.0f} to savings")
 
     def _action_withdraw_emergency(self, amount: float) -> None:
         actual = min(amount, self._savings)
@@ -463,7 +650,93 @@ class MyEnvironment(Environment):
             return
         self._savings -= actual
         self._checking += actual
-        self._today_events.append(f"Emergency withdrawal ${actual:.2f} from savings")
+        self._savings_withdrawn_today = True
+        self._today_events.append(f"Emergency withdrawal ₹{actual:.0f} from savings")
+
+    # -------------------------------------------------------------------------
+    # v2: New Action Handlers — Loans, Negotiation
+    # -------------------------------------------------------------------------
+
+    def _action_take_formal_loan(self, amount: float) -> None:
+        """Apply for a formal bank loan — delayed delivery, reasonable APR."""
+        if not self._loan_config or "formal" not in self._loan_config:
+            self._today_events.append("No formal loan options available")
+            return
+        cfg = self._loan_config["formal"]
+        if self._credit_score < cfg["min_credit_score"]:
+            self._today_events.append(
+                f"Loan DENIED — credit score {self._credit_score} below {cfg['min_credit_score']}"
+            )
+            return
+        actual = min(amount, cfg["max_amount"])
+        delivery_day = self._current_day + cfg["processing_days"]
+        self._pending_formal_loans.append({"amount": actual, "apr": cfg["apr"], "delivery_day": delivery_day})
+        min_due = round(actual * cfg.get("minimum_due_pct", 0.05), 2)
+        self._debts.append({
+            "id": f"bank_loan_{self._current_day}", "principal": actual, "apr": cfg["apr"],
+            "minimum_due": min_due, "credit_limit": None, "min_payment_due_day": 15,
+            "is_credit_card": False, "missed_payments": 0, "min_paid_this_cycle": False,
+            "original_principal": actual,
+        })
+        self._history["formal_loans_taken"] += 1
+        self._today_events.append(f"✅ Bank loan approved: ₹{actual:.0f} at {cfg['apr']}% APR — arrives day {delivery_day}")
+
+    def _action_take_informal_loan(self, amount: float) -> None:
+        """Take a predatory informal loan — instant cash, devastating APR."""
+        if not self._loan_config or "informal" not in self._loan_config:
+            self._today_events.append("No informal loan options available")
+            return
+        cfg = self._loan_config["informal"]
+        actual = min(amount, cfg["max_amount"])
+        self._checking += actual
+        min_due = round(actual * cfg.get("minimum_due_pct", 0.10), 2)
+        self._debts.append({
+            "id": f"loan_shark_{self._current_day}", "principal": actual, "apr": cfg["apr"],
+            "minimum_due": min_due, "credit_limit": None, "min_payment_due_day": 10,
+            "is_credit_card": False, "missed_payments": 0, "min_paid_this_cycle": False,
+            "original_principal": actual,
+        })
+        self._history["informal_loans_taken"] += 1
+        self._today_events.append(f"⚠️ Informal loan taken: ₹{actual:.0f} INSTANT — but APR is {cfg['apr']}%!")
+
+    def _action_take_festive_loan(self, amount: float) -> None:
+        """Take a festive season loan — only during festival windows."""
+        if self._active_festival is None:
+            self._today_events.append("No festival season active — festive loan unavailable")
+            return
+        fw = self._active_festival
+        actual = min(amount, fw.get("max_festive_loan", 3000.0))
+        apr = fw.get("festive_loan_apr", 28.0)
+        self._checking += actual
+        min_due = round(actual * 0.08, 2)
+        self._debts.append({
+            "id": f"festive_loan_{self._current_day}", "principal": actual, "apr": apr,
+            "minimum_due": min_due, "credit_limit": None, "min_payment_due_day": 20,
+            "is_credit_card": False, "missed_payments": 0, "min_paid_this_cycle": False,
+            "original_principal": actual,
+        })
+        self._history["festive_loans_taken"] += 1
+        self._today_events.append(f"🎉 Festive loan taken: ₹{actual:.0f} — 'low EMI' but {apr}% APR")
+
+    def _action_negotiate_bill(self, bill_id: str) -> None:
+        """Attempt to negotiate a bill reduction — 40% success chance."""
+        bill = self._find_active_bill(bill_id)
+        if bill is None:
+            self._today_events.append(f"Bill '{bill_id}' not found")
+            return
+        if bill["is_paid"]:
+            self._today_events.append(f"Bill '{bill_id}' already paid")
+            return
+        if bill_id in self._negotiated_bills:
+            self._today_events.append(f"Already negotiated '{bill_id}' this episode")
+            return
+        self._negotiated_bills.add(bill_id)
+        if self._rng.random() < 0.40:
+            discount = round(bill["amount"] * 0.15, 2)
+            bill["amount"] = round(bill["amount"] - discount, 2)
+            self._today_events.append(f"✅ Negotiation SUCCESS: '{bill_id}' reduced by ₹{discount:.0f}")
+        else:
+            self._today_events.append(f"❌ Negotiation FAILED: '{bill_id}' unchanged")
 
     # -------------------------------------------------------------------------
     # End-of-day processing
@@ -483,19 +756,19 @@ class MyEnvironment(Environment):
             if not bill["is_paid"] and self._current_day >= bill["due_day"]:
                 days_late = self._current_day - bill["due_day"]
                 if days_late == 0:
-                    late_fee = max(35.0, bill["amount"] * 0.05)
+                    late_fee = max(500.0, bill["amount"] * 0.05)  # ₹500 or 5%
                     msg = "LATE FEE"
                     self._today_late_payments += 1
                     self._history["missed_payment_count"] += 1
                 else:
-                    late_fee = 5.0  # Escalating $5 daily penalty for unpaid bills
+                    late_fee = 100.0  # Escalating ₹100/day penalty for unpaid bills
                     msg = "ESCALATING LATE FEE"
                 
                 self._checking -= late_fee
                 self._history["total_late_fees"] += late_fee
                 self._today_events.append(
                     f"⚠ {msg}: Bill '{bill['id']}' ({bill['category']}) "
-                    f"${bill['amount']:.2f} overdue — fee ${late_fee:.2f}"
+                    f"₹{bill['amount']:.0f} overdue — fee ₹{late_fee:.0f}"
                 )
 
     def _process_debt_deadlines(self) -> None:
@@ -532,23 +805,23 @@ class MyEnvironment(Environment):
         self._today_interest = total_interest
         self._history["total_interest_paid"] += total_interest
         if total_interest > 0.01:
-            self._today_events.append(f"Interest accrued: ${total_interest:.2f}")
+            self._today_events.append(f"Interest accrued: ₹{total_interest:.0f}")
 
     def _detect_overdraft(self) -> None:
-        """Track overdraft days and apply $35 fee on first day of overdraft."""
+        """Track overdraft days and apply ₹500 fee on first day of overdraft."""
         if self._checking < 0:
             was_already_overdrawn = self._history["overdraft_days"] > 0
             self._history["overdraft_days"] += 1
-            # Apply $35 fee once when first entering overdraft
+            # Apply ₹500 fee once when first entering overdraft
             if not was_already_overdrawn:
-                self._checking -= 35.0
-                self._history["total_late_fees"] += 35.0
+                self._checking -= 500.0
+                self._history["total_late_fees"] += 500.0
                 self._today_events.append(
-                    f"⚠ OVERDRAFT FEE: $35.00 charged. Balance: ${self._checking:.2f}"
+                    f"⚠ OVERDRAFT FEE: ₹500 charged. Balance: ₹{self._checking:.0f}"
                 )
             else:
                 self._today_events.append(
-                    f"⚠ OVERDRAFT: Checking balance ${self._checking:.2f}"
+                    f"⚠ OVERDRAFT: Checking balance ₹{self._checking:.0f}"
                 )
         else:
             # Reset overdraft tracking when balance recovers
@@ -634,46 +907,63 @@ class MyEnvironment(Environment):
             "interest_penalty": 0.0,
             "default_penalty": 0.0,
             "zero_savings": 0.0,
+            "predatory_loan_penalty": 0.0,
+            "emergency_buffer_bonus": 0.0,
+            "inaction_penalty": 0.0,
+            "action_diversity": 0.0,
         }
 
         # --- Positive signals ---
 
-        # No overdraft
         if self._checking >= 0:
             breakdown["no_overdraft"] = 5.0
 
-        # Bills paid on time
         breakdown["bill_payment"] = self._today_on_time_payments * 10.0
-
-        # High-APR debt payment reward (from action processing)
         breakdown["debt_payment"] = self._today_debt_reward
 
-        # Savings growth
-        if self._savings > self._yesterday_savings + 0.01:
+        # v2: Anti-churn savings growth — no reward if withdrew and deposited same day
+        if (self._savings > self._yesterday_savings + 0.01
+                and not (self._savings_withdrawn_today and self._savings_deposited_today)
+                and (self._savings - self._yesterday_savings) >= 500.0):
             breakdown["savings_growth"] = 6.0
 
-        # Credit score daily delta
         credit_delta = self._credit_score - self._yesterday_credit_score
         breakdown["credit_improvement"] = credit_delta * 0.5
 
+        # v2: Emergency buffer bonus — reward maintaining a cushion
+        total_upcoming = sum(b["amount"] for b in self._active_bills if not b["is_paid"])
+        if self._checking + self._savings > total_upcoming * 1.2 and total_upcoming > 0:
+            breakdown["emergency_buffer_bonus"] = 3.0
+
+        # v2: Action diversity bonus
+        if len(self._action_history) >= 7:
+            unique_recent = len(set(self._action_history[-7:]))
+            if unique_recent >= 3:
+                breakdown["action_diversity"] = 1.0
+
         # --- Negative signals ---
 
-        # Late payments (Reduced extreme penalty)
         breakdown["late_payment"] = self._today_late_payments * -15.0
 
-        # Overdraft (Reduced to allow partial success in hard task)
         if self._checking < 0:
             breakdown["overdraft_penalty"] = -25.0
 
-        # Interest accrued (proportional penalty)
         breakdown["interest_penalty"] = self._today_interest * -2.0
-
-        # Defaults (Reduced penalty to avoid tanking score completely)
         breakdown["default_penalty"] = self._today_defaults * -50.0
 
-        # Zero savings penalty
         if self._savings <= 0.01:
             breakdown["zero_savings"] = -5.0
+
+        # v2: Predatory loan penalty — taking informal/festive loans hurts
+        if self._history.get("informal_loans_taken", 0) > 0:
+            # Ongoing penalty for each informal loan still active
+            shark_debt = sum(d["principal"] for d in self._debts if "loan_shark" in d["id"])
+            if shark_debt > 0:
+                breakdown["predatory_loan_penalty"] = -8.0
+
+        # v2: Consecutive do-nothing penalty (anti-reward-hacking)
+        if self._consecutive_do_nothing >= 3:
+            breakdown["inaction_penalty"] = -2.0 * (self._consecutive_do_nothing - 2)
 
         reward = sum(breakdown.values())
         return round(reward, 4), {k: round(v, 4) for k, v in breakdown.items() if v != 0.0}
@@ -738,6 +1028,10 @@ class MyEnvironment(Environment):
                     "reward_breakdown": self._last_breakdown
                 }
             },
+            # v2: Loan offers, emergencies, festivals
+            loan_offers=self._build_loan_offers(),
+            active_emergency=self._build_emergency_obs(),
+            festival=self._build_festival_obs(),
         )
 
     # -------------------------------------------------------------------------
@@ -813,5 +1107,79 @@ class MyEnvironment(Environment):
                 not b["is_paid"]
                 and self._current_day < b["due_day"] <= self._current_day + 5
             ):
-                risk += max(35.0, b["amount"] * 0.05)
+                risk += max(500.0, b["amount"] * 0.05)
         return risk
+
+    # -------------------------------------------------------------------------
+    # v2: Observation helpers for loans, emergencies, festivals
+    # -------------------------------------------------------------------------
+
+    def _build_loan_offers(self) -> list:
+        """Build loan offer observations based on task config."""
+        if not self._loan_config:
+            return []
+        offers = []
+        if "formal" in self._loan_config:
+            cfg = self._loan_config["formal"]
+            offers.append(LoanOffer(
+                loan_type="formal_bank",
+                label=cfg.get("label", f"Bank Loan — {cfg['apr']}% APR"),
+                max_amount=cfg["max_amount"],
+                apr=cfg["apr"],
+                processing_days=cfg["processing_days"],
+                min_credit_score=cfg["min_credit_score"],
+                available=self._credit_score >= cfg["min_credit_score"],
+                warning=f"Requires credit score ≥ {cfg['min_credit_score']}. {cfg['processing_days']}-day processing.",
+            ))
+        if "informal" in self._loan_config:
+            cfg = self._loan_config["informal"]
+            offers.append(LoanOffer(
+                loan_type="informal_lender",
+                label=cfg.get("label", "Quick Cash — no paperwork"),
+                max_amount=cfg["max_amount"],
+                apr=cfg["apr"],
+                processing_days=0,
+                min_credit_score=0,
+                available=True,
+                warning="Instant approval! Easy terms!",  # Deliberately misleading
+            ))
+        if self._active_festival:
+            fw = self._active_festival
+            offers.append(LoanOffer(
+                loan_type="festive",
+                label=fw.get("festive_loan_label", f"Festival Offer — celebrate now!"),
+                max_amount=fw.get("max_festive_loan", 3000.0),
+                apr=fw.get("festive_loan_apr", 28.0),
+                processing_days=0,
+                min_credit_score=0,
+                available=True,
+                warning="Limited time festive offer! Low EMI!",
+            ))
+        return offers
+
+    def _build_emergency_obs(self):
+        """Build medical emergency observation."""
+        if not self._active_medical_emergency:
+            return None
+        e = self._active_medical_emergency
+        return MedicalEmergencyInfo(
+            id=e["id"],
+            amount=e["amount"],
+            deadline_day=e["deadline_day"],
+            description=e["description"],
+            is_paid=e["is_paid"],
+        )
+
+    def _build_festival_obs(self):
+        """Build festival observation."""
+        if not self._active_festival:
+            return None
+        fw = self._active_festival
+        return FestivalInfo(
+            name=fw["name"],
+            days_remaining=max(0, fw["end_day"] - self._current_day),
+            daily_social_cost=fw.get("daily_social_cost", 0.0),
+            festive_loan_available=True,
+            festive_loan_apr=fw.get("festive_loan_apr", 28.0),
+            pressure_message=fw.get("pressure_messages", [""])[self._current_day % max(1, len(fw.get("pressure_messages", [""])))],
+        )
