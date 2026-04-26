@@ -8,176 +8,182 @@ app_port: 7860
 pinned: false
 ---
 
-# Financial Triage: Can an LLM Survive 90 Days of India’s Household Finance Crisis?
+<div align="center">
 
-> *“We built an OpenEnv where an LLM learns what many were never taught—which bill to pay first, when a ‘quick cash’ loan is a trap, and how UPI micro-spend compounds across a month.”*
+# Financial Triage
+### *Can an LLM survive 90 days of India’s household finance?*
 
-| What | Link |
-|------|------|
-| **Live Space (judges pull from here)** | [**`indra-dhanush/financial-triage-env`**](https://huggingface.co/spaces/indra-dhanush/financial-triage-env) |
-| **Training notebook (Unsloth + TRL, Colab)** | Open in Colab: [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) · [`financial_triage_training.ipynb`](financial_triage_training.ipynb) in this repo |
-| **Mini write-up (required materials)** | [MINI_BLOG.md](MINI_BLOG.md) — also on the Hub: [view `MINI_BLOG.md` in this Space](https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/MINI_BLOG.md) |
-| **Demo video (≤2 min, add when published)** | *Replace the placeholder in the “Media & judging checklist” section below with your public YouTube URL (do not check large video files into the Space).* |
+**OpenEnv · SFT + GRPO · Qwen2.5-7B · Hugging Face Space**
 
-**Stack (self-serve guide):** Environment (OpenEnv) → **dense, verifiable rewards** + episode grader → **SFT** (trajectory warmup) → **GRPO** (TRL) with **Unsloth** (4-bit **Qwen2.5-7B-Instruct**) → deploy on **Hugging Face Spaces**.
+[![Space](https://img.shields.io/badge/🤗%20Live%20Space-indra--dhanush%2Ffinancial--triage--env-yellow)](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)
+[![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb)
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-core%20≥%200.2.3-blue)](https://pypi.org/project/openenv-core/)
 
-**`openenv-core`:** this project is built and tested on **`openenv-core[core] >= 0.2.3`** (current OpenEnv line on PyPI as of the hackathon build).
+</div>
 
----
-
-## OpenEnv hackathon — theme alignment
-
-We position **Financial Triage** under the official theme rubric as follows (pick what you lead with in the pitch; both apply):
-
-- **Theme #2 — (Super) long-horizon planning & instruction following**  
-  Episodes last **30 / 60 / 90** simulated days (one action per day). The agent must track bills, paydays, debt cycles, and shocks across a long trajectory—**not** a single-turn chat.
-
-- **Theme #3.1 — World modeling, professional / economic task**  
-  A **partially observable** money world: stochastic UPI-style leakage, **misleading** informal loan rates vs realized costs, **interest and defaults**, and **CIBIL-style** dynamics—all **programmatically** verified.
-
-This is **not** a multi-agent (Theme #1) or self-play generator (Theme #4) benchmark; the focus is a **single agent** in a **realistic economic simulator** with **objective** rewards.
+> **One line:** We train an LLM **day by day** in a realistic INR simulator—bills, UPI leaks, predatory loans, emergencies—using **dense rewards** and **heuristic → SFT → GRPO** so the model learns *policies*, not trivia.
 
 ---
 
-## Judging criteria — how this README answers them
+## Start here (≈5 minutes for judges)
 
-| Criterion | Where it lives in this submission |
-|-----------|-----------------------------------|
-| **Environment innovation** | Realistic INR household simulation, 11 action types, loan-shark partial observability, UPI micro-spend, medical and festival pressure, 14-part dense reward + anti-hacking. |
-| **Storytelling** | This file + [MINI_BLOG.md](MINI_BLOG.md) — *Problem → environment → what we trained → results → why it matters*. |
-| **Showing improvement in rewards (20%)** | **SFT training loss (7B)** and **Heuristic vs SFT (7B) vs GRPO (7B)** bar chart below (committed PNGs, not only Colab outputs). |
-| **Reward & training pipeline (10%)** | Dense reward table + SFT on heuristic traces + **GRPO on live environment** (see notebook). |
+| # | Read this | You get |
+|---|-----------|--------|
+| 1 | [**The loop**](#the-loop--how-one-episode-runs) — flowchart + diagram | What `reset` / `step` / grader do |
+| 2 | [**Themes**](#hackathon-themes) | Why this fits **Theme #2** + **#3.1** |
+| 3 | [**Results**](#training--evidence) — loss + bars | Proof of **SFT + GRPO** vs **heuristic** |
+| 4 | [**Quick links**](#links--materials) | Space, Colab, mini-blog, code entry points |
 
-**Minimum requirements checklist**
+---
 
-- [x] **OpenEnv** — `openenv.core.env_server` base classes, `openenv.yaml`, `create_app` in `server/app.py`
-- [x] **Unsloth or TRL in Colab** — `financial_triage_training.ipynb`
-- [x] **Loss and reward / score plots** — embedded below, files committed
-- [x] **Write-up** — this README + [MINI_BLOG.md](MINI_BLOG.md) (and optional HF blog / YouTube — see *Media* section)
-- [x] **Hugging Face Space** — link at top; **this repo is the Space** when pushed to `origin`
+## Links & materials
 
-### Media and judging materials (all linked from this README)
+| Resource | URL / file |
+|----------|------------|
+| **Live Space (submit this URL)** | [**`huggingface.co/spaces/indra-dhanush/financial-triage-env`**](https://huggingface.co/spaces/indra-dhanush/financial-triage-env) |
+| **Colab training** (Unsloth + TRL) | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) · [`financial_triage_training.ipynb`](financial_triage_training.ipynb) |
+| **Mini write-up** | [`MINI_BLOG.md`](MINI_BLOG.md) · [View on Hub](https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/MINI_BLOG.md) |
+| **Demo video (≤2 min)** | *Add your YouTube URL when published* — do not upload large video files to the Space. |
 
-1. **Mini-blog / write-up (in-repo, judge-readable on Hub):** [MINI_BLOG.md](MINI_BLOG.md)  
-   *Optional:* duplicate the same text to a [Hugging Face blog post](https://huggingface.co/new-blog) or [HF Posts](https://huggingface.co/posts) and add your public URL in a follow-up commit.
+**Stack:** `Environment` → **verifiable step reward + episode grader** → **SFT** (heuristic traces) → **GRPO** (TRL, live env) → **Unsloth** 4-bit **Qwen2.5-7B** → **this Space**.
 
-2. **Video (optional but high-impact):** after you upload a **≤2 minute** video to YouTube, add one line under your repo’s *Quick links* or here:  
-   `Demo video: https://www.youtube.com/watch?v=YOUR_VIDEO_ID`  
-   (Use a URL only—**do not** commit large video files to the Space.)
+---
 
-3. **Plots:** saved as `training_loss_7b.png` and `before_after_scores_7b.png` in the repository root; embedded with captions in the *Results* section.
+## The loop — how one episode runs
+
+The environment is **Gym-style**: `reset(task_id)` → repeat `step(action)` until `done` → **grade in [0, 1]**. **One step = one simulated day.** The LLM picks **exactly one** financial action per day from **11** types (pay bill, pay debt, savings move, formal/informal loan, negotiate, …).
+
+### Visual — full OpenEnv loop
+
+<p align="center">
+  <img src="flowchart.png" alt="Financial Triage: reset to observation, LLM picks one of eleven actions, environment advances one day with salary UPI interest and shocks, loop until episode ends then grader scores zero to one" width="100%" />
+</p>
+
+<p align="center"><em><strong>Caption:</strong> Each day the agent sees balances, bills, debts, risk, optional loan offers, emergencies, and a short text summary → one action → world updates (salary, UPI micro-spend, interest, fees, shocks) → step reward + next observation, or final score.</em></p>
+
+<details>
+<summary><strong>Text diagram (same loop, for accessibility / Git copy)</strong></summary>
+
+```mermaid
+flowchart LR
+    A([reset(task_id)]) --> B[Observation]
+    B --> C[LLM: 1 of 11 actions]
+    C --> D[env.step — 1 day]
+    D --> E{Episode done?}
+    E -->|no| B
+    E -->|yes| F[Grader: score 0.0–1.0]
+```
+
+*(Mermaid renders on GitHub; on some Hub views use the PNG above.)*
+
+</details>
+
+**What runs under the hood:** `server/my_env_environment.py` implements dynamics; `tasks.py` defines **easy / medium / hard** and **`grade_episode`**. See [`openenv.yaml`](openenv.yaml) for task ids.
+
+---
+
+## Hackathon themes
+
+| Theme | How Financial Triage fits |
+|-------|---------------------------|
+| **#2 Long-horizon planning** | **30 / 60 / 90** simulated days; compounding bills, interest, and shocks—not a single chat turn. |
+| **#3.1 World modeling (professional / economic)** | **Partial observability** (e.g. advertised vs realized loan cost), **stochastic** UPI, **programmatic** credit and default rules. |
+
+Not **#1 multi-agent** or **#4 self-generated tasks**—one agent, one economic world, **objective** rewards.
+
+---
+
+## Judging rubric — where to look
+
+| Weight | Criterion | In this repo |
+|--------|-----------|--------------|
+| 40% | **Innovation** | India-specific finance, loan-shark trap, UPI drain, 14-term reward + anti-hacking |
+| 30% | **Story** | This README + [`MINI_BLOG.md`](MINI_BLOG.md) |
+| 20% | **Improvement** | [`training_loss_7b.png`](#training--evidence) + [`before_after_scores_7b.png`](#training--evidence) (heuristic vs SFT vs GRPO) |
+| 10% | **Reward + pipeline** | Reward table below; SFT + **GRPO on live env** in notebook |
+
+**Checklist:** OpenEnv (`openenv-core[core] ≥ 0.2.3`) · Colab notebook · plots in repo · Space URL · write-up linked.
 
 ---
 
 ## Why this problem
 
-Household and unsecured debt, UPI usage, and informal credit are central to real Indian financial stress. Fintech products visualize spending; this environment **trains a policy in the loop** with **stochastic** income and spend, **mandatory** shocks, and **deliberate** predatory-lending **mislabels** so the model cannot rely on text alone.
-
-**Data sources (narrative calibration only, not private data):** RBI financial literacy and credit statistics, NSSO health expenditure, NPCI UPI, NCRB public reports, and similar **public** references cited in the original project research notes.
-
----
-
-## How the environment works
-
-![Environment loop: reset → observe → act → step → grade](flowchart.png)
-
-*Caption: one daily loop. The agent receives a full financial observation, emits **one** action, the simulator advances one day, and the agent sees **dense step reward** plus a natural-language **day summary**.*
-
-**One step = one day.** The simulator applies salary/ freelance credits, UPI micro-transactions, interest, bill and debt rules, medical and festival events, and updates a credit-score proxy and history for grading.
+Household debt and UPI-first money are real constraints in India. Dashboards show history; **we train a model to act** under **stochastic** pay, **mandatory** shocks, and **misleading** credit offers—so success is **verified in code**, not vibes.
 
 ---
 
 ## Task tiers (curriculum)
 
-| | Easy (30d) | Medium (60d) | Hard (90d) |
-|---|------------|--------------|------------|
-| **Income** | ₹30K / month | ₹55K + freelance | ₹65K then **job loss** then gig pay |
-| **Debt** | None | CC, EMI, BNPL, traps | Four debts, large principal |
-| **Events** | UPI noise | loan-shark + medical | two emergencies + Diwali |
-| **Bills** | stochastic ±% | stochastic ±% | stochastic ±% |
-
-`openenv.yaml` lists `task_id` values: `easy`, `medium`, `hard`.
+| | **Easy (30d)** | **Medium (60d)** | **Hard (90d)** |
+|---|----------------|-------------------|----------------|
+| **Income** | ₹30K / mo | ₹55K + freelance | Job loss → gig pay |
+| **Debt** | None | CC, EMI, BNPL, traps | Large multi-debt |
+| **Stress** | UPI noise | Shark + medical | Two emergencies + Diwali |
+| **`task_id`** | `easy` | `medium` | `hard` |
 
 ---
 
-## What the agent sees and does
+## Agent: observation & actions (short)
 
-- **Observation:** Checkings/savings, bills, debts, risk signals, optional loan offers, active emergency, festival block, and `daily_summary` text.  
-- **Actions (examples):** `pay_bill_full`, `pay_minimum`, `defer_bill`, `pay_extra_debt`, `transfer_to_savings`, `withdraw_emergency`, `take_formal_loan`, `take_informal_loan`, `take_festive_loan`, `negotiate_bill`, `do_nothing`.  
-- **Anti–reward-hacking (design intent):** multiple independent **penalties and bonuses** (e.g. savings churn, inaction streaks, predatory debt, diversity)—see *Reward* section.  
-- **Episode score:** `grade_episode` in `tasks.py` returns a **scalar in [0,1]** per difficulty, comparable across runs.
-
----
-
-## Training you can reproduce
-
-| Phase | What | Model (reported run) |
-|--------|------|------------------------|
-| **SFT** | Imitation on heuristic rollouts (see `sft_dataset.jsonl` and notebook) | **Qwen2.5-7B-Instruct** (4-bit, Unsloth) |
-| **GRPO** | TRL + environment rollouts, verifiable rewards | Same backbone |
-
-*T4 / small GPU:* you may switch the notebook to **`unsloth/Qwen2.5-3B-Instruct-bnb-4bit`** for a cheaper run; **all figures in this repo are for the 7B run** unless you regenerate and commit new PNGs.
+- **Sees:** Checking/savings, bills, debts, risk signals, loan offers, emergency, festival info, **`daily_summary`** text.  
+- **Acts (one per day):** e.g. `pay_bill_full`, `pay_minimum`, `defer_bill`, `pay_extra_debt`, `transfer_to_savings`, `withdraw_emergency`, `take_formal_loan`, `take_informal_loan`, `take_festive_loan`, `negotiate_bill`, `do_nothing`.  
+- **Scores:** Dense **step** reward + episode **grader** in **[0, 1]**.
 
 ---
 
-## Results — evidence of training (loss + before / after)
+## Training & evidence
 
-### SFT training loss (7B)
+| Phase | What | Model (reported) |
+|-------|------|------------------|
+| **SFT** | Imitation on heuristic rollouts (`sft_dataset.jsonl`) | **Qwen2.5-7B** 4-bit (Unsloth) |
+| **GRPO** | TRL + rollouts in the **live** environment | Same |
 
-**X-axis: training step · Y-axis: loss (cross-entropy on SFT).**
+*Optional:* 3B in notebook for small GPUs; **figures below are 7B.**
 
-![SFT training loss for Qwen2.5-7B: loss versus training step](training_loss_7b.png)
+### SFT loss (7B)
 
-*Caption: SFT loss falls over 60 steps and flattens at a low value—indicates a stable supervised phase before GRPO.*
+<p align="center"><img src="training_loss_7b.png" alt="SFT training loss vs step for Qwen2.5-7B" width="720" /></p>
 
-### Heuristic (baseline) vs SFT (7B) vs GRPO (7B) — mean episode score by difficulty
+*Loss vs training step—supervised phase converges before GRPO.*
 
-**Y-axis: episode score in [0,1]. Orange = heuristic (hand-coded) baseline, not a pretrained LLM. Blue = SFT, Green = GRPO.**
+### Heuristic vs SFT (7B) vs GRPO (7B)
 
-![Heuristic vs SFT 7B vs GRPO 7B episode scores on Easy, Medium, Hard](before_after_scores_7b.png)
+<p align="center"><img src="before_after_scores_7b.png" alt="Bar chart: heuristic SFT and GRPO episode scores on Easy Medium Hard" width="720" /></p>
 
-*Caption: three-way comparison on Easy (30d), Medium (60d), Hard (90d). Heuristic is the strong program baseline; SFT brings the model on-distribution; GRPO refines with environment feedback. Exact bar values are printed on the figure.*
+*Orange = **heuristic** (hand-coded baseline). Blue = SFT. Green = GRPO. Values printed on bars.*
 
-### Heuristic-only baselines (context)
+### Heuristic-only context (optional)
 
-Cumulative **step reward** trajectories and **heuristic-only** bar snapshot (for intuition; **not** a substitute for the trained-model plots above).
+<p align="center">
+  <img src="reward_curves_baseline.png" alt="Heuristic cumulative reward vs day" width="48%" />
+  <img src="baseline_scores.png" alt="Heuristic episode scores by difficulty" width="48%" />
+</p>
 
-![Heuristic agent: reward vs day for each difficulty](reward_curves_baseline.png)
-
-*Caption: heuristic daily reward accrual—hard mode shows stress around job loss and second shock.*
-
-![Heuristic-only episode scores by difficulty](baseline_scores.png)
-
-*Caption: heuristic mean scores (Easy / Medium / Hard) used as a reference level.*
-
----
-
-## Dense reward (multi-component) — specification sketch
-
-The step reward combines **many** terms (on-time pay, overdraft, defaults, interest, buffer, diversity, etc.). A monolithic 0/1 at the end would be too sparse for learning; this design matches the self-serve guide’s “multiple independent checks” and “anti-hacking” goals.
-
-| Direction | Examples (see code for full list) |
-|-----------|-----------------------------------|
-| Positive | No overdraft, bill on time, paying high-APR debt, savings buffer, CIBIL improvement, action diversity |
-| Negative | Late payment, overdraft, default, interest drag, predatory carry, idle streaks, zero buffer |
-
-**Implementation:** `server/my_env_environment.py` (`_compute_reward` and related helpers). **Episode-level** grader: `tasks.py` (`grade_episode` / `grade_*`).
+*Reference curves for the rule-based agent—not a substitute for trained-model bars above.*
 
 ---
 
-## Quick start (local or Docker)
+## Dense reward (multi-term)
+
+| ✓ Good signals | ✗ Bad signals |
+|----------------|---------------|
+| On-time pay, buffer, paying predatory APR, diversity | Late pay, overdraft, default, interest drag, idle streaks, predatory carry |
+
+**Code:** `_compute_reward` in `server/my_env_environment.py` · **`grade_*`** in `tasks.py`.
+
+---
+
+## Quick start
 
 ```bash
 git clone https://huggingface.co/spaces/indra-dhanush/financial-triage-env
-cd financial-triage-env
-pip install -e .
+cd financial-triage-env && pip install -e .
 uvicorn server.app:app --host 0.0.0.0 --port 7860
 ```
 
-**Docker:** `docker build -t financial-triage .` then `docker run -p 7860:7860 financial-triage`  
-(Health: `GET /health`.)
+**Docker:** `docker build -t financial-triage .` · `docker run -p 7860:7860 financial-triage` · health: `GET /health`
 
-**Python client (remote):**
+**Remote client:**
 
 ```python
 from openenv import EnvClient
@@ -185,33 +191,26 @@ env = EnvClient.from_hub("indra-dhanush/financial-triage-env")
 obs = env.reset(task_id="hard")
 ```
 
-**Note on client/server:** the **served** environment is the source of truth for OpenEnv. The Colab **notebook** may import the environment **locally** for fast training from a cloned copy—acceptable for a hackathon training loop. For a strict client-only story, use `EnvClient` against your Space URL.
+**Training** uses a **local clone** in Colab for speed; **inference** for judges can use the **Space** client above.
 
 ---
 
-## OpenEnv manifest
+## OpenEnv manifest & engineering notes
 
-- **File:** [openenv.yaml](openenv.yaml)  
-- **App:** `server.app:app`, port `7860`, tasks `easy` / `medium` / `hard`.
+- **Manifest:** [`openenv.yaml`](openenv.yaml) — `app: server.app:app`, port **7860**.  
+- **Do not** use reserved tool names: `reset`, `step`, `state`, `close` for custom MCP/HTTP tools.  
+- **QLoRA / save:** follow Unsloth merge instructions; test inference after export.
 
-Do **not** name custom MCP or HTTP tools `reset`, `step`, `state`, or `close` (OpenEnv / MCP reserved patterns).
+**License:** [MIT](LICENSE) · **OpenEnv:** [hub](https://huggingface.co/openenv) · **PyPI:** [openenv-core](https://pypi.org/project/openenv-core/)
 
----
+*Optional dev scripts:* `fix_ipynb.py`, `generate_loss_plot.py`, `test_reward.py` — not required to run the Space.
 
-## License and references
-
-- **License:** [MIT](LICENSE)  
-- **OpenEnv:** [OpenEnv on Hugging Face](https://huggingface.co/openenv) · [`openenv-core` on PyPI](https://pypi.org/project/openenv-core/)  
-- **Hackathon context:** [OpenEnv India / themes](https://huggingface.co/openenv) (see theme PDF you received)
-
-**Optional dev utilities in repo:** `fix_ipynb.py`, `generate_loss_plot.py`, `test_reward.py` — not required to run the Space; safe to ignore for evaluation.
+**Data citations (public stats only):** RBI, NSSO, NPCI, NCRB—narrative calibration, no private data.
 
 ---
 
-## QLoRA / saving models (read before you push adapters)
+<div align="center">
 
-If you use 4-bit QLoRA in Colab, **follow Unsloth’s documented merge / save path**; do not naïvely upcast and merge in a way that corrupts weights. **Smoke-test** your exported adapter or merged model on a few `reset` / `step` calls before the submission freeze.
+**Built for the OpenEnv hackathon — train in the real loop, show the curves, ship the Space.**
 
----
-
-*README version aligned with: OpenEnv Hackathon minimum requirements, self-serve training guide, and judging rubric (innovation, storytelling, reward evidence, pipeline). Push this repository to the Space `origin` before the submission deadline so judges see the same commit.*
+</div>
