@@ -107,7 +107,7 @@
   <div class="wrap">
     <header>
       <div>
-        <h1>Financial Triage <span class="day-pill">INR · OpenEnv</span></h1>
+        <h1>Financial Triage <span class="day-pill">INR · OpenEnv</span> <span class="day-pill" id="llmPill" style="background:#2a1f0f;color:var(--warn)">LLM: …</span></h1>
         <p class="tag">Local stateful demo for screen recording (uses <code>/api/demo/*</code> — not the stateless <code>7860</code> HTTP <code>/step</code>)</p>
       </div>
     </header>
@@ -173,11 +173,21 @@
             <input id="amount" type="number" value="5000" min="0" step="100" />
           </div>
         </div>
+        <h2 style="margin-top:1.1rem">Trained model (from Colab or API)</h2>
+        <p class="tag" id="llmHelp">Set <code>LLM_BASE_URL</code>, <code>LLM_API_KEY</code>, <code>LLM_MODEL</code> (Hugging Face router, vLLM, etc.) and/or <code>LLM_LOCAL_ADAPTER</code> to your Colab <code>outputs/grpo</code> folder, then restart this server. See repo README (video pitch UI section).</p>
+        <div class="row">
+          <button class="primary" type="button" id="btnAIStep" disabled title="Model picks action + one env.step">AI: step (policy)</button>
+          <button class="secondary" type="button" id="btnAISug" disabled title="Only fill form from model">AI: suggest only</button>
+        </div>
+        <div class="row">
+          <button class="secondary" type="button" id="btnAIPlay" disabled>AI: autoplay</button>
+          <label>max days <input type="number" id="aiMax" value="12" min="1" max="120" style="width:4rem" /></label>
+        </div>
         <div class="row">
           <button class="primary" type="button" id="btnStep" disabled>Step (submit action)</button>
           <button class="secondary" type="button" id="btnHeur" disabled>Fill baseline action</button>
         </div>
-        <p class="tag" style="margin-top:0.75rem">“Fill baseline” copies the hand-coded policy used for SFT rollouts. Edit before stepping if you want.</p>
+        <p class="tag" style="margin-top:0.75rem">“Fill baseline” = hand-coded SFT data policy. <strong>AI</strong> uses the same chat prompt as training; connect your Colab checkpoint via env vars or a hosted OpenAI-compatible endpoint.</p>
       </div>
       <div>
         <div class="card" style="margin-bottom:0.75rem">
@@ -210,6 +220,29 @@
     const $ = (id) => document.getElementById(id);
     const logEl = $("log");
     const API = ""; // same origin: video_demo server
+
+    function setLlmPill(ready) {
+      const p = $("llmPill");
+      if (!p) return;
+      p.textContent = ready ? "LLM: connected" : "LLM: not configured";
+      p.style.color = ready ? "var(--accent)" : "var(--warn)";
+      p.style.background = ready ? "#0f1f1c" : "#2a1f0f";
+    }
+
+    async function refreshLlm() {
+      try {
+        const r = await fetch(`${API}/api/demo/llm_status`);
+        const s = await r.json();
+        setLlmPill(s && s.ready);
+        const ok = s && s.ready;
+        const allow = ok && canStep;
+        $("btnAIStep").disabled = !allow;
+        $("btnAISug").disabled = !allow;
+        $("btnAIPlay").disabled = !allow;
+      } catch (e) {
+        setLlmPill(false);
+      }
+    }
 
     const ACTION_TYPES = [
       "do_nothing", "pay_bill_full", "pay_minimum", "defer_bill", "pay_extra_debt",
@@ -281,6 +314,7 @@
       canStep = !r.done;
       $("btnStep").disabled = !canStep;
       $("btnHeur").disabled = !canStep;
+      refreshLlm();
     }
 
     function buildAction() {
@@ -315,6 +349,63 @@
       } catch (e) {
         log("reset error: " + e);
         alert(String(e));
+      }
+    });
+
+    $("btnAIStep").addEventListener("click", async () => {
+      try {
+        const res = await fetch(`${API}/api/demo/ai_step`, { method: "POST" });
+        if (!res.ok) {
+          const t = await res.text();
+          if (res.status === 503) log("LLM: " + t);
+          throw new Error(t);
+        }
+        const r = await res.json();
+        log("AI step → " + (r.action_text || "") + " | reward=" + r.reward + " | raw: " + (r.raw_model || "").slice(0, 80));
+        applyResult(r);
+      } catch (e) {
+        log("ai_step error: " + e);
+        alert(String(e));
+      }
+    });
+
+    $("btnAISug").addEventListener("click", async () => {
+      try {
+        const res = await fetch(`${API}/api/demo/ai_suggest`, { method: "POST" });
+        if (!res.ok) {
+          const t = await res.text();
+          if (res.status === 503) log("LLM: " + t);
+          throw new Error(t);
+        }
+        const h = await res.json();
+        const a = h.action;
+        if (a.action_type) atype.value = a.action_type;
+        setVisibility();
+        if (a.bill_id) $("billid").value = a.bill_id;
+        if (a.debt_id) $("debtid").value = a.debt_id;
+        if (a.amount != null) $("amount").value = a.amount;
+        log("AI suggest → " + h.action_text + " | " + (h.raw_model || "").slice(0, 100));
+      } catch (e) {
+        log("ai_suggest error: " + e);
+        alert(String(e));
+      }
+    });
+
+    $("btnAIPlay").addEventListener("click", async () => {
+      const maxD = Math.min(120, Math.max(1, Number($("aiMax").value) || 12));
+      for (let i = 0; i < maxD; i++) {
+        if (!canStep) break;
+        const res = await fetch(`${API}/api/demo/ai_step`, { method: "POST" });
+        if (!res.ok) {
+          const t = await res.text();
+          log("autoplay: " + t);
+          break;
+        }
+        const r = await res.json();
+        log("autoplay D" + i + " reward=" + r.reward + " done=" + r.done);
+        applyResult(r);
+        if (r.done) break;
+        await new Promise((x) => setTimeout(x, 250));
       }
     });
 
@@ -353,6 +444,8 @@
         alert(String(e));
       }
     });
+
+    refreshLlm();
   </script>
 </body>
 </html>

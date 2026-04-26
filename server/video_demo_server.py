@@ -30,6 +30,8 @@ from server.my_env_environment import MyEnvironment
 
 from inference import _heuristic_action, format_action
 
+from server.llm_policy import generate_trained_action, llm_status
+
 _lock = threading.Lock()
 _env: Optional[MyEnvironment] = None
 _last_obs: Optional[FinancialObservation] = None
@@ -119,6 +121,78 @@ def demo_heuristic() -> Dict[str, Any]:
             "action": act.model_dump(mode="json"),
             "action_text": format_action(act),
         }
+
+
+@app.get("/api/demo/llm_status")
+def api_llm_status() -> Dict[str, Any]:
+    return llm_status()
+
+
+@app.post("/api/demo/ai_suggest")
+def demo_ai_suggest() -> Dict[str, Any]:
+    """Get one action from the trained policy (API or local adapter). Does not step."""
+    with _lock:
+        _get_env()
+        if not llm_status()["ready"]:
+            raise HTTPException(
+                503,
+                "LLM not configured. Set env LLM_BASE_URL + LLM_API_KEY + LLM_MODEL "
+                "or LLM_LOCAL_ADAPTER=path. See README video-demo section.",
+            )
+        if _last_obs is None:
+            raise HTTPException(400, "No observation; reset first")
+        if getattr(_last_obs, "done", False):
+            raise HTTPException(400, "Episode finished; reset to continue")
+        obs = _last_obs
+    try:
+        act, raw, atxt = generate_trained_action(obs)
+    except Exception as ex:
+        raise HTTPException(502, f"LLM call failed: {ex}") from ex
+    return {
+        "action": act.model_dump(mode="json"),
+        "action_text": atxt,
+        "raw_model": raw,
+    }
+
+
+@app.post("/api/demo/ai_step")
+def demo_ai_step() -> Dict[str, Any]:
+    """One model-chosen action + env.step in one call."""
+    global _last_obs
+    with _lock:
+        _get_env()
+        if not llm_status()["ready"]:
+            raise HTTPException(
+                503,
+                "LLM not configured. Set env LLM_BASE_URL + LLM_API_KEY + LLM_MODEL "
+                "or LLM_LOCAL_ADAPTER=path. See README video-demo section.",
+            )
+        if _last_obs is None:
+            raise HTTPException(400, "No observation; reset first")
+        if getattr(_last_obs, "done", False):
+            raise HTTPException(400, "Episode finished; reset to continue")
+        obs_for_model = _last_obs
+    try:
+        act, raw, atxt = generate_trained_action(obs_for_model)
+    except Exception as ex:
+        raise HTTPException(502, f"LLM call failed: {ex}") from ex
+    with _lock:
+        e = _get_env()
+        try:
+            obs = e.step(act)
+        except Exception as ex:
+            raise HTTPException(422, f"Invalid action after parse: {ex}") from ex
+        _last_obs = obs
+        out: Dict[str, Any] = {
+            "observation": _obs_to_json(obs),
+            "reward": obs.reward,
+            "done": obs.done,
+            "raw_model": raw,
+            "action_text": atxt,
+        }
+        if obs.done:
+            out["episode_score"] = e.get_episode_score()
+        return out
 
 
 @app.get("/api/demo/score")

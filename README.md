@@ -172,6 +172,8 @@ uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 OpenEnv’s default HTTP `POST /reset` and `POST /step` on port **7860** create a **new** environment every request, so a multi-day walkthrough needs a **session** server. For screen recording a short YouTube / demo, run: `python -m server.video_demo_server` then open **http://127.0.0.1:8088/** (includes an optional presenter outline; uses port **8088** by default via `VIDEO_DEMO_PORT`).
 
+**Hooking up the model you trained in Colab:** the web UI can drive **`env.step`** with your policy. Export or host your checkpoint, then set either **(A)** an **OpenAI-compatible** API — `LLM_BASE_URL` (e.g. `https://router.huggingface.co/v1` for Hugging Face Inference, or a **vLLM** / TGI base URL), `LLM_API_KEY`, `LLM_MODEL` (e.g. your merged model on the Hub) — and/or **(B)** a **local GPU** with `LLM_LOCAL_ADAPTER` pointing to the Unsloth/PEFT output folder (e.g. `outputs/grpo` copied from Colab), optionally with `LLM_BASE_ID=unsloth/Qwen2.5-7B-Instruct-bnb-4bit` for base+LoRA. If both API and local are set, default is local unless `LLM_PREFER_API=1`. Restart the demo server, then use **AI: step** / **AI: autoplay** in the browser.
+
 **Remote client**
 
 ```python
