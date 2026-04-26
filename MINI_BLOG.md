@@ -63,5 +63,5 @@ Every rupee in this simulation is fictional. The APRs, Diwali social-cost magnit
 
 - **Live Space (runnable environment + `/demo/` UI):** <https://huggingface.co/spaces/indra-dhanush/financial-triage-env>
 - **Colab training notebook:** <https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb>
-- **Judge one-pager:** [`JUDGES.md`](JUDGES.md)
+- **Rubric map + re-run commands:** [`README.md`](README.md)
 - **OpenEnv:** <https://huggingface.co/openenv>
