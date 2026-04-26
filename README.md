@@ -111,7 +111,7 @@ flowchart LR
 |---|----------------|------------------|----------------|
 | **Income** | Steady salary | Salary + side income | **Job loss → gig** |
 | **Debt** | None | Card, EMI, buy-now-pay-later, predatory option | **Heavy multi-debt** |
-| **Shocks** | Small daily noise | Health + informality | **Stacked** crises + festival |
+| **Shocks** | Small daily noise | Health + informality | **Stacked** crises + festival spending shock (distinct from festival-loan penalty in the grader) |
 | **`task_id`** | `easy` | `medium` | `hard` |
 
 ## Observation, action, and what comes back
@@ -125,7 +125,7 @@ flowchart LR
 | **SFT** | Imitation on heuristic rollouts (`sft_dataset.jsonl`) | **Qwen2.5-7B** 4-bit; [What this stack is](#what-this-stack-is) |
 | **GRPO** (Hugging Face TRL) | Parsed actions hit **live** `env.step` | same backbone |
 
-**What scalar the policy-optimization step uses (important):** The GRPO `reward_fn` does **not** call **`grade_episode`**. For each row it **replays** stored **expert `prefix_actions`** under the same `(task_id, seed)` to reach the observation for that `day`, **strictly** parses the model’s action (no heuristic fill-in), runs **one** `env.step`, and maps **`_last_breakdown['total']`** (dense per-step return, including end-of-episode bonus on the last day) to **[-1, 1]** by scaling. **By contrast,** the **bar chart** averages **full** episodes via **`get_episode_score()` → `grade_episode`** (**a score between 0 and 1**; [Episode grade](#episode-grade)). **Policy phase = one-step env reward; bar heights = full-run episode grader.**
+**What scalar the policy-optimization step uses (important):** The GRPO `reward_fn` does **not** call **`grade_episode`**. For each row it **replays** stored **expert `prefix_actions`** step-by-step under the same `(task_id, seed)` to deterministically reconstruct the environment state at that day's observation, **strictly** parses the model’s action (no heuristic fill-in), runs **one** `env.step`, and maps **`_last_breakdown['total']`** (dense per-step return, including end-of-episode bonus on the last day) to **[-1, 1]** by scaling. **By contrast,** the **bar chart** averages **full** episodes via **`get_episode_score()` → `grade_episode`** (**a score between 0 and 1**; [Episode grade](#episode-grade)). **Policy phase = one-step env reward; bar heights = full-run episode grader.**
 
 On a smaller GPU the notebook can swap checkpoints; **committed PNGs are the 7B run** unless you replace them.
 
@@ -156,7 +156,7 @@ Each `step` adds **one** float: the **sum** of the **14** keys in `breakdown` in
 
 ## Episode grade
 
-**Episode outcome = a score between 0 and 1.** `grade_episode` dispatches `easy` / `medium` / `hard`; each grader weights overdraft, bills, savings, credit, interest, defaults, informal and festive loans, emergencies (mix varies by difficulty). Internally `_clamp` keeps the value off **exact** 0.0 / 1.0 before rounding. **Deterministic** from `history`. Bar charts call **`get_episode_score()`**, which wraps this.
+**Episode outcome = a score between 0 and 1.** `grade_episode` dispatches `easy` / `medium` / `hard`; each grader weights overdraft, bills, savings, credit, interest, defaults, informal and festive loans, emergencies (mix varies by difficulty). Hard adds two terms absent from Easy entirely: default count and festival-loan use; the rest are shared terms with different weights. Internally `_clamp` keeps the value off **exact** 0.0 / 1.0 before rounding. **Deterministic** from `history`. Bar charts call **`get_episode_score()`**, which wraps this.
 
 ## Run it locally, in Docker, or from a client
 
