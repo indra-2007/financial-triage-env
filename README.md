@@ -19,8 +19,10 @@ pinned: false
 <p style="font-size:1.05em;margin:0.4em 0 1em;">Rupee-denominated. Rule-based, not vibes-based. Miss a payment and the score drops.</p>
 
 [![Space](https://img.shields.io/badge/🤗%20Space-indra--dhanush%2Ffinancial--triage--env-yellow)](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)
+[![GitHub](https://img.shields.io/badge/GitHub-indra--2007%2Ffinancial--triage--env-181717?logo=github)](https://github.com/indra-2007/financial-triage-env)
 [![Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb)
 [![OpenEnv](https://img.shields.io/badge/openenv--core-≥%200.2.3-blue)](https://pypi.org/project/openenv-core/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
 
@@ -43,15 +45,43 @@ Open the Space URL and a browser lands on **`/demo/`**: pick a task, pick a seed
 
 ## Materials
 
+Every link below points at something committed to the repo or live on the Space; nothing is gated behind an auth token.
+
+**Live**
+
 | What | Where |
 |------|-------|
-| Space (runnable environment and `/demo/`) | <https://huggingface.co/spaces/indra-dhanush/financial-triage-env> |
-| Colab notebook — SFT then GRPO on Unsloth + TRL | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) · [`financial_triage_training.ipynb`](financial_triage_training.ipynb) |
-| Write-up | [`MINI_BLOG.md`](MINI_BLOG.md) |
-| Multi-seed baseline evaluation | [`heuristic_scores.json`](heuristic_scores.json) · [`heuristic_scores_ci.png`](heuristic_scores_ci.png) — [`scripts/eval_heuristic.py`](scripts/eval_heuristic.py) |
-| Environment ablation | [`ablation_env.json`](ablation_env.json) · [`ablation_env.png`](ablation_env.png) — [`scripts/ablation_env.py`](scripts/ablation_env.py) |
+| Interactive demo UI (one click, no install) | <https://indra-dhanush-financial-triage-env.hf.space/demo/> |
+| Space (repo + build + OpenEnv API host) | <https://huggingface.co/spaces/indra-dhanush/financial-triage-env> |
+| Live OpenAPI / Swagger on the Space | <https://indra-dhanush-financial-triage-env.hf.space/docs> |
+| Health probe | <https://indra-dhanush-financial-triage-env.hf.space/health> |
+| GitHub source mirror | <https://github.com/indra-2007/financial-triage-env> |
+| Colab notebook — SFT then GRPO on Unsloth + TRL | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) |
+
+**In the repo**
+
+| What | Where |
+|------|-------|
+| Environment core (`Environment` subclass, `step`, reward breakdown) | [`server/my_env_environment.py`](server/my_env_environment.py) |
+| OpenEnv app wiring (`create_app`, routes, schemas) | [`server/app.py`](server/app.py) · [`openenv.yaml`](openenv.yaml) |
+| Task configs + three `grade_*` graders | [`tasks.py`](tasks.py) |
+| Pydantic action / observation models | [`models.py`](models.py) |
+| `/demo/` session server (UI + `/api/demo/*`) | [`server/video_demo_server.py`](server/video_demo_server.py) · [`video_demo/index.html`](video_demo/index.html) |
+| Container + hosts | [`Dockerfile`](Dockerfile) · [`render.yaml`](render.yaml) · [`Procfile`](Procfile) · [`runtime.txt`](runtime.txt) |
+| Project manifest | [`pyproject.toml`](pyproject.toml) · [`requirements.txt`](requirements.txt) · [`LICENSE`](LICENSE) |
+| Training notebook (committed with outputs) | [`financial_triage_training.ipynb`](financial_triage_training.ipynb) |
 | Training scripts (standalone, runnable on any CUDA GPU) | [`scripts/train_sft.py`](scripts/train_sft.py) · [`scripts/train_grpo.py`](scripts/train_grpo.py) |
-| Training logs | [`TRAINING_LOGS/`](TRAINING_LOGS/) bundles `training_loss.png` (SFT curve, 60 steps), `before_after_scores.png` (heuristic vs SFT vs GRPO, n=5), `training_run.json` (every hyperparameter + every scalar metric preserved from the Colab run), and a README that is explicit about what is and is not committed. Both training scripts and the notebook set `report_to='wandb'` when `WANDB_API_KEY` is present, so a reviewer re-running on their own W&B workspace gets the full per-step log without my key in the loop. |
+| SFT dataset (heuristic rollouts, JSONL) | [`sft_dataset.jsonl`](sft_dataset.jsonl) |
+| Inference helper for merged / LoRA checkpoints | [`inference.py`](inference.py) |
+| Multi-seed baseline evaluation | [`scripts/eval_heuristic.py`](scripts/eval_heuristic.py) · [`scripts/eval_utils.py`](scripts/eval_utils.py) · [`heuristic_scores.json`](heuristic_scores.json) · [`heuristic_scores_ci.png`](heuristic_scores_ci.png) |
+| Environment ablation (six knobs) | [`scripts/ablation_env.py`](scripts/ablation_env.py) · [`ablation_env.json`](ablation_env.json) · [`ablation_env.png`](ablation_env.png) |
+| Per-seed hard-task scatter + delta histogram | [`scripts/paired_scores.py`](scripts/paired_scores.py) · [`paired_scores_hard.png`](paired_scores_hard.png) |
+| Stochasticity audit (state σ vs grader σ) | [`scripts/verify_stochasticity.py`](scripts/verify_stochasticity.py) · [`stochasticity_report.json`](stochasticity_report.json) |
+| Reward inspector (fire any of the 14 terms) | [`scripts/inspect_reward.py`](scripts/inspect_reward.py) |
+| OpenEnv HTTP compliance smoke test (15 checks) | [`scripts/check_openenv.py`](scripts/check_openenv.py) |
+| Reward-invariant unit tests | [`tests/test_reward_properties.py`](tests/test_reward_properties.py) |
+| Write-up / mini-blog | [`MINI_BLOG.md`](MINI_BLOG.md) |
+| Training logs | [`TRAINING_LOGS/`](TRAINING_LOGS/) bundles [`training_loss.png`](TRAINING_LOGS/training_loss.png) (SFT curve, 60 steps), [`before_after_scores.png`](TRAINING_LOGS/before_after_scores.png) (heuristic vs SFT vs GRPO, n=5), [`training_run.json`](TRAINING_LOGS/training_run.json) (every hyperparameter + every scalar metric preserved from the Colab run), and a [README](TRAINING_LOGS/README.md) that is explicit about what is and is not committed. Both training scripts and the notebook set `report_to='wandb'` when `WANDB_API_KEY` is present, so a reviewer re-running on their own W&B workspace gets the full per-step log without my key in the loop. |
 
 ## The daily loop: reset, step, grade
 
