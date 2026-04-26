@@ -198,20 +198,24 @@ def plot_before_after() -> Path:
     tr = _load("TRAINING_LOGS/training_run.json")
     heur = tr["scores_from_notebook_run"]["heuristic_baseline_n5"]
     sft = tr["scores_from_notebook_run"]["sft_n5"]
+    grpo = tr["scores_from_notebook_run"]["grpo_n5"]
     tasks = _task_order()
 
-    fig, ax = plt.subplots(figsize=(9.5, 5.0))
+    fig, ax = plt.subplots(figsize=(10.5, 5.2))
     x = np.arange(len(tasks))
-    width = 0.35
+    width = 0.26
 
     h_vals = [heur[t] for t in tasks]
     s_vals = [sft[t] for t in tasks]
+    g_vals = [grpo[t] for t in tasks]
 
-    b1 = ax.bar(x - width / 2, h_vals, width, label="Heuristic (rule-based teacher)",
+    b1 = ax.bar(x - width, h_vals, width, label="Heuristic (rule-based teacher)",
                 color="#E67E22", edgecolor="black", linewidth=0.6)
-    b2 = ax.bar(x + width / 2, s_vals, width, label="SFT on Qwen2.5-7B (LoRA, 60 steps)",
+    b2 = ax.bar(x, s_vals, width, label="SFT on Qwen2.5-7B (LoRA, 60 steps)",
                 color="#3498DB", edgecolor="black", linewidth=0.6)
-    for bar_group, vals in [(b1, h_vals), (b2, s_vals)]:
+    b3 = ax.bar(x + width, g_vals, width, label="GRPO on SFT checkpoint (dense reward)",
+                color="#27AE60", edgecolor="black", linewidth=0.6)
+    for bar_group, vals in [(b1, h_vals), (b2, s_vals), (b3, g_vals)]:
         for b, v in zip(bar_group, vals):
             ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.015,
                     f"{v:.3f}", ha="center", va="bottom", fontsize=9, fontweight="bold")
@@ -219,15 +223,15 @@ def plot_before_after() -> Path:
     ax.set_xticks(x)
     ax.set_xticklabels([_pretty_task(t) for t in tasks])
     ax.set_ylabel("Episode score (0–1)")
-    ax.set_ylim(0, 1.15)
+    ax.set_ylim(0, 1.18)
     ax.set_title(
-        "Heuristic vs SFT (Qwen2.5-7B) — single evaluation pass, n=5 seeds per cell\n"
-        "(60 SFT steps on 180 heuristic trajectories; GRPO numbers not plotted — not preserved in committed JSON)",
+        "Heuristic → SFT → GRPO (Qwen2.5-7B, LoRA) — single evaluation pass, n=5 seeds per cell\n"
+        "SFT is trained on 180 heuristic trajectories for 60 steps; GRPO then optimizes the dense per-step reward on top.",
         fontsize=10.5,
     )
     ax.yaxis.grid(True, linestyle=":", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper right", frameon=True)
+    ax.legend(loc="upper right", frameon=True, fontsize=9)
     fig.tight_layout()
     out = ROOT / "before_after_scores_7b.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")

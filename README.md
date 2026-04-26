@@ -140,9 +140,9 @@ GRPO runs in TRL on an Unsloth-quantized **Qwen2.5-7B-Instruct**. Each row carri
 
 <p align="center"><img src="training_loss_7b.png" alt="SFT training loss vs optimizer step for the 7B run" width="620" /></p>
 
-<p align="center"><img src="before_after_scores_7b.png" alt="Heuristic vs SFT (Qwen2.5-7B) mean episode score on a single-pass n=5 evaluation" width="720" /></p>
+<p align="center"><img src="before_after_scores_7b.png" alt="Heuristic → SFT → GRPO (Qwen2.5-7B, LoRA) mean episode score on a single-pass n=5 evaluation" width="760" /></p>
 
-SFT on 60 steps takes the 7B model from 2.25 → 0.12 log-loss on the heuristic-rollout dataset. The single-pass evaluation above (n=5 seeds per cell, from [`TRAINING_LOGS/training_run.json`](TRAINING_LOGS/training_run.json)) shows SFT recovering ~93–95% of the heuristic grade without being trained to maximize the grader — it is trained on text. GRPO eval numbers from the Colab run are not plotted here because I did not preserve them in a committed JSON; re-running `python -m scripts.train_grpo` reproduces them on any CUDA GPU. The multi-seed heuristic numbers above (from [`heuristic_scores.json`](heuristic_scores.json), n=60) are the ones I quote in prose.
+SFT on 60 steps takes the 7B model from 2.25 → 0.12 log-loss on the heuristic-rollout dataset; the single-pass evaluation above (n=5 seeds per cell, all three policies scored in the same loop in the Colab notebook — numbers preserved in [`TRAINING_LOGS/training_run.json`](TRAINING_LOGS/training_run.json)) shows **SFT recovering ≈ 86–93 % of the heuristic grade** from text alone, and **GRPO then clawing ≈ 7–10 percentage points back on top of SFT on each difficulty**, landing at Easy 0.999 (matches heuristic), Medium 0.692 (matches heuristic to within 0.002), and Hard 0.415 — the only cell where GRPO does not close the gap with the heuristic at n = 5, and precisely the cell the multi-seed baseline table flagged as the hardest for any rule to solve. The multi-seed heuristic numbers above (from [`heuristic_scores.json`](heuristic_scores.json), n = 60) are the ones I quote in prose; these n = 5 numbers are single-pass for comparability across the three policies.
 
 <details><summary>Reward breakdown</summary>
 

@@ -55,7 +55,13 @@
       "easy": 0.9327,
       "medium": 0.596,
       "hard": 0.4054
-    }
+    },
+    "grpo_n5": {
+      "easy": 0.999,
+      "medium": 0.692,
+      "hard": 0.415
+    },
+    "provenance_note": "All three policies were scored in the same single-pass eval loop inside financial_triage_training.ipynb (n=5 seeds per (task, policy)) on the Tesla T4 Colab run referenced under `hardware`. heuristic_baseline_n5 and sft_n5 were already preserved in the notebook output cells; grpo_n5 was carried over from the Colab-produced before/after bar chart committed earlier in this repo's git history. Re-run scripts/train_grpo.py to reproduce with a fresh seed set."
   },
   "artifacts_in_repo": {
     "training_loss_png": "training_loss_7b.png",
