@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Financial Triage — demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --card: #151a22;
+      --border: #2a3344;
+      --text: #e8ecf3;
+      --muted: #8b99ad;
+      --accent: #3dd6c4;
+      --warn: #f0b24d;
+      --danger: #e85d6a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Outfit", system-ui, sans-serif;
+      background: radial-gradient(1200px 800px at 20% 0%, #112028 0%, var(--bg) 55%);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+    header {
+      display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.75rem;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem; margin-bottom: 1.25rem;
+    }
+    h1 { font-size: 1.55rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+    .tag { font-size: 0.85rem; color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1fr 1.1fr; gap: 1rem; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.1rem 1.2rem;
+    }
+    .card h2 { margin: 0 0 0.65rem; font-size: 1.05rem; font-weight: 600; }
+    #presenter { font-size: 0.9rem; color: var(--muted); }
+    #presenter strong { color: var(--text); }
+    #presenter ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+    details#presenter > summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0.4rem 0; }
+    label { font-size: 0.8rem; color: var(--muted); }
+    input, select, button {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.8rem;
+      border-radius: 8px; border: 1px solid var(--border);
+      background: #0e1218; color: var(--text);
+      padding: 0.45rem 0.6rem;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 500;
+      border-color: #3a4a5e;
+    }
+    button.primary { background: linear-gradient(180deg, #1f6b62 0%, #145a52 100%); border-color: #2a9b8c; color: #fff; }
+    button.secondary { background: #1c2430; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.6rem;
+    }
+    @media (max-width: 600px) { .metrics { grid-template-columns: 1fr; } }
+    .metric {
+      background: #0e1218;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+    }
+    .metric b { display: block; font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric span { font-size: 1.2rem; font-weight: 700; }
+    .log {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.72rem;
+      line-height: 1.45;
+      max-height: 220px;
+      overflow: auto;
+      background: #0a0d12;
+      border-radius: 8px;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      color: #c5d0de;
+    }
+    .day-pill { display: inline-block; background: #1f2937; color: var(--accent); padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.75rem; }
+    .banner {
+      background: linear-gradient(90deg, #1a2330, #122027);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.9rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Financial Triage <span class="day-pill">INR · OpenEnv</span></h1>
+        <p class="tag">Local stateful demo for screen recording (uses <code>/api/demo/*</code> — not the stateless <code>7860</code> HTTP <code>/step</code>)</p>
+      </div>
+    </header>
+
+    <div class="banner" style="margin-bottom:1rem">
+      <strong style="color:var(--text)">YouTube (under ~2 min):</strong> name the <strong>problem</strong> (INR household triage), the <strong>environment</strong> (one day = one action; dense reward; episode grader 0–1), and <strong>training</strong> (SFT + GRPO on Qwen2.5-7B with Unsloth/TRL; point to Colab, plots, and the HF Space). This UI is only to <strong>show a live step</strong> and reward.
+    </div>
+
+    <details class="card" id="presenter" open style="margin-bottom:1rem">
+      <summary>Presenter outline (optional)</summary>
+      <p style="margin:0.5rem 0 0; color:var(--muted)">Rough script aligned with hackathon / README:</p>
+      <ul>
+        <li><strong>00:00</strong> — “This is a <strong>day-by-day</strong> simulator: miss a payment and the ledger shows it; rules are in code, not a deck.”</li>
+        <li><strong>00:20</strong> — “Built on <strong>OpenEnv</strong>: <code>reset</code> → <code>step</code> until done → one <strong>grade</strong> in [0,1].”</li>
+        <li><strong>00:40</strong> — “We <strong>trained</strong> with <strong>Unsloth + TRL</strong>: SFT on heuristic demos, then <strong>GRPO</strong> with rewards from a <strong>live</strong> env step. Curves and Space link are in the repo.”</li>
+        <li><strong>01:00</strong> — Live demo: pick task, <strong>Reset</strong>, step a few days, show <strong>reward</strong> / <strong>episode score</strong> at the end.</li>
+        <li><strong>01:20</strong> — Point to the Hugging Face <strong>Space</strong>, Colab, and the short write-up URL from the README. End.</li>
+      </ul>
+    </details>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Run controls</h2>
+        <div class="row">
+          <div>
+            <label>Task</label><br />
+            <select id="task">
+              <option value="easy">easy (30d)</option>
+              <option value="medium" selected>medium (60d)</option>
+              <option value="hard">hard (90d)</option>
+            </select>
+          </div>
+          <div>
+            <label>Seed</label><br />
+            <input id="seed" type="number" value="7" min="0" max="99999" />
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" type="button" id="btnReset">Reset episode</button>
+        </div>
+        <h2 style="margin-top:1.1rem">Action</h2>
+        <div class="row">
+          <div>
+            <label>Action type</label><br />
+            <select id="atype"></select>
+          </div>
+        </div>
+        <div class="row" id="rowBill" style="display:none">
+          <div>
+            <label>bill_id</label><br />
+            <select id="billid"></select>
+          </div>
+        </div>
+        <div class="row" id="rowDebt" style="display:none">
+          <div>
+            <label>debt_id</label><br />
+            <select id="debtid"></select>
+          </div>
+        </div>
+        <div class="row" id="rowAmt" style="display:none">
+          <div>
+            <label>amount (INR)</label><br />
+            <input id="amount" type="number" value="5000" min="0" step="100" />
+          </div>
+        </div>
+        <div class="row">
+          <button class="primary" type="button" id="btnStep" disabled>Step (submit action)</button>
+          <button class="secondary" type="button" id="btnHeur" disabled>Fill baseline action</button>
+        </div>
+        <p class="tag" style="margin-top:0.75rem">“Fill baseline” copies the hand-coded policy used for SFT rollouts. Edit before stepping if you want.</p>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:0.75rem">
+          <h2>Today</h2>
+          <div class="metrics">
+            <div class="metric"><b>Day</b><span id="mDay">—</span></div>
+            <div class="metric"><b>Checking (INR)</b><span id="mChk">—</span></div>
+            <div class="metric"><b>Score / CIBIL</b><span id="mCib">—</span></div>
+          </div>
+          <p style="margin:0.6rem 0 0.3rem; font-size:0.8rem; color:var(--muted)">Last step reward (dense) · episode score when done</p>
+          <div class="metrics" style="margin-top:0.4rem">
+            <div class="metric"><b>Last reward</b><span id="mRew">—</span></div>
+            <div class="metric"><b>Episode done</b><span id="mDone">—</span></div>
+            <div class="metric"><b>Grade (0–1)</b><span id="mScore">—</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Daily summary</h2>
+          <p id="summary" style="margin:0; font-size:0.9rem; color:var(--muted)">Reset to load state.</p>
+        </div>
+        <div class="card" style="margin-top:0.75rem">
+          <h2>Event log</h2>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const logEl = $("log");
+    const API = ""; // same origin: video_demo server
+
+    const ACTION_TYPES = [
+      "do_nothing", "pay_bill_full", "pay_minimum", "defer_bill", "pay_extra_debt",
+      "transfer_to_savings", "withdraw_emergency", "take_formal_loan", "take_informal_loan", "take_festive_loan", "negotiate_bill"
+    ];
+
+    function log(line) {
+      const t = new Date().toISOString().slice(11, 19);
+      logEl.textContent = `[${t}] ${line}\n` + logEl.textContent;
+    }
+
+    const atype = $("atype");
+    ACTION_TYPES.forEach((a) => {
+      const o = document.createElement("option");
+      o.value = a; o.textContent = a; atype.appendChild(o);
+    });
+
+    let lastObs = null;
+    let canStep = false;
+
+    function setVisibility() {
+      const t = atype.value;
+      $("rowBill").style.display = /pay_bill_full|defer_bill|negotiate_bill/.test(t) ? "flex" : "none";
+      $("rowDebt").style.display = /pay_minimum|pay_extra_debt/.test(t) ? "flex" : "none";
+      $("rowAmt").style.display = /pay_extra_debt|transfer_to_savings|withdraw_emergency|take_formal_loan|take_informal_loan|take_festive_loan/.test(t) ? "flex" : "none";
+    }
+    atype.addEventListener("change", setVisibility);
+    setVisibility();
+
+    function formatInr(n) {
+      if (n == null || Number.isNaN(n)) return "—";
+      return new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(n);
+    }
+
+    function applyObservation(r) {
+      const o = r.observation;
+      if (!o) return;
+      lastObs = o;
+      $("mDay").textContent = (o.current_day != null) ? `${o.current_day} / ${o.episode_length}` : "—";
+      if (o.account) {
+        $("mChk").textContent = formatInr(o.account.checking_balance);
+        $("mCib").textContent = (o.risk && o.risk.credit_score != null) ? String(o.risk.credit_score) : "—";
+      }
+      $("summary").textContent = o.daily_summary || "—";
+      // populate bill/debt pickers
+      const billSel = $("billid");
+      const debtSel = $("debtid");
+      billSel.innerHTML = "";
+      debtSel.innerHTML = "";
+      (o.bills || []).filter((b) => !b.is_paid).forEach((b) => {
+        const opt = document.createElement("option");
+        opt.value = b.id; opt.textContent = `${b.id} · ${formatInr(b.amount)} (due d${b.due_day})`;
+        billSel.appendChild(opt);
+      });
+      (o.debts || []).filter((d) => d.principal > 0).forEach((d) => {
+        const opt = document.createElement("option");
+        opt.value = d.id; opt.textContent = `${d.id} · ow. ${formatInr(d.principal)}`;
+        debtSel.appendChild(opt);
+      });
+    }
+
+    function applyResult(r) {
+      applyObservation(r);
+      if (r.reward != null) $("mRew").textContent = Number(r.reward).toFixed(2);
+      else $("mRew").textContent = "—";
+      $("mDone").textContent = r.done ? "true" : "false";
+      if (r.done && r.episode_score != null) $("mScore").textContent = Number(r.episode_score).toFixed(4);
+      else if (!r.done) $("mScore").textContent = "—";
+      canStep = !r.done;
+      $("btnStep").disabled = !canStep;
+      $("btnHeur").disabled = !canStep;
+    }
+
+    function buildAction() {
+      const t = atype.value;
+      const a = { action_type: t };
+      if (t === "pay_bill_full" || t === "defer_bill" || t === "negotiate_bill") {
+        a.bill_id = $("billid").value || "rent";
+      }
+      if (t === "pay_minimum" || t === "pay_extra_debt") {
+        a.debt_id = $("debtid").value || "cc_hdfc";
+      }
+      if (t === "pay_extra_debt" || t === "transfer_to_savings" || t === "withdraw_emergency" || t === "take_formal_loan" || t === "take_informal_loan" || t === "take_festive_loan") {
+        a.amount = Math.max(0, Number($("amount").value) || 0);
+      }
+      return a;
+    }
+
+    $("btnReset").addEventListener("click", async () => {
+      try {
+        const res = await fetch(`${API}/api/demo/reset`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_id: $("task").value, seed: Number($("seed").value) }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const r = await res.json();
+        log(`reset task=${$("task").value} seed=${$("seed").value}`);
+        applyResult(r);
+        $("mRew").textContent = "—";
+        $("mScore").textContent = "—";
+        $("mDone").textContent = "false";
+      } catch (e) {
+        log("reset error: " + e);
+        alert(String(e));
+      }
+    });
+
+    $("btnHeur").addEventListener("click", async () => {
+      try {
+        const res = await fetch(`${API}/api/demo/heuristic`, { method: "POST" });
+        if (!res.ok) throw new Error(await res.text());
+        const h = await res.json();
+        const a = h.action;
+        if (a.action_type) atype.value = a.action_type;
+        setVisibility();
+        if (a.bill_id) $("billid").value = a.bill_id;
+        if (a.debt_id) $("debtid").value = a.debt_id;
+        if (a.amount != null) $("amount").value = a.amount;
+        log("heuristic → " + h.action_text);
+      } catch (e) {
+        log("heuristic error: " + e);
+        alert(String(e));
+      }
+    });
+
+    $("btnStep").addEventListener("click", async () => {
+      try {
+        const action = buildAction();
+        const res = await fetch(`${API}/api/demo/step`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const r = await res.json();
+        log(`step ${JSON.stringify(action)} reward=${r.reward} done=${r.done}`);
+        applyResult(r);
+      } catch (e) {
+        log("step error: " + e);
+        alert(String(e));
+      }
+    });
+  </script>
+</body>
+</html>
