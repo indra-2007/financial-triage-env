@@ -142,10 +142,14 @@ python -m server.video_demo_server
 ```
 
 ```python
-from openenv import EnvClient
-env = EnvClient.from_hub("indra-dhanush/financial-triage-env")
-obs = env.reset(task_id="hard")
+# Raw HTTP against the Space — works with any client, no version dance.
+import requests
+BASE = "https://indra-dhanush-financial-triage-env.hf.space"
+r = requests.post(f"{BASE}/reset", json={"task_id": "hard", "seed": 0}).json()
+# r["observation"] is the full ledger; POST the next action to /step.
 ```
+
+The Space exposes the full OpenEnv HTTP surface — `POST /reset`, `POST /step`, `GET /state`, `GET /metadata`, `GET /schema`, plus `/health` and `/mcp`. See `/docs` on the Space for the live OpenAPI. `AutoEnv.from_hub("indra-dhanush/financial-triage-env")` also works with `OPENENV_TRUST_REMOTE_CODE=1`, subject to the usual caveats about installing remote code.
 
 Both evaluation scripts are standard-library plus `numpy` and `matplotlib`; no GPU. Outputs land at the repo root as `heuristic_scores.{json,png}`, `heuristic_scores_ci.png`, and `ablation_env.{json,png}` — the JSONs include every per-seed score, so a reviewer can recompute any mean or CI without trusting mine.
 
