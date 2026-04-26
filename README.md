@@ -172,6 +172,8 @@ uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 OpenEnv’s default HTTP `POST /reset` and `POST /step` on port **7860** create a **new** environment every request, so a multi-day walkthrough needs a **session** server. For screen recording a short YouTube / demo, run: `python -m server.video_demo_server` then open **http://127.0.0.1:8088/** (includes an optional presenter outline; uses port **8088** by default via `VIDEO_DEMO_PORT`).
 
+**Free hosting (public URL):** this demo needs a **long-running** Python process (in-memory session). Use [Render](https://render.com): add the repo → **New** → **Blueprint** and select `render.yaml`, or create a **Web Service** with build `pip install -r requirements.txt` and start `uvicorn server.video_demo_server:app --host 0.0.0.0 --port $PORT`. **Vercel** (serverless) is a poor fit here. Free Render instances **sleep** after idle time; the first load may be slow, and any in-memory episode is lost when the instance restarts.
+
 **Remote client**
 
 ```python
