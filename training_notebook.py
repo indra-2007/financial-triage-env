@@ -5,7 +5,7 @@
 # This notebook trains an LLM to manage Indian household finances using
 # Reinforcement Learning (GRPO) against the Financial Triage OpenEnv environment.
 #
-# Requirements: Google Colab with GPU (T4 for 3B, A100 for 8B)
+# Requirements: Google Colab with GPU (T4 for 3B optional, A100 for 7B)
 #
 # Architecture:
 #   1. Collect expert trajectories from heuristic agent
@@ -20,7 +20,7 @@
 # %% [markdown]
 # # 🏥💰 Financial Triage — Training an AI Financial Advisor for India
 #
-# **Goal**: Train a 3B LLM to manage Indian household finances — bills, debts,
+# **Goal**: Train a Qwen2.5-7B (or 3B on T4) LLM to manage Indian household finances — bills, debts,
 # UPI micro-transactions, medical emergencies, and Diwali social pressure.
 #
 # **Environment**: [Financial Triage on HF Spaces](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)
@@ -206,16 +206,16 @@ print(f"✅ GRPO dataset: {len(grpo_dataset)} unique prompts")
 
 # %% Cell 5: Load Model with Unsloth
 # ============================================================================
-# Load Qwen2.5-3B-Instruct with 4-bit quantization for efficient training.
-# For 8B, change the model name to "unsloth/Qwen2.5-7B-Instruct-bnb-4bit"
+# Load Qwen2.5-7B-Instruct with 4-bit quantization (primary run in README figures).
+# For a smaller T4 run, use "unsloth/Qwen2.5-3B-Instruct-bnb-4bit" instead.
 # ============================================================================
 
 from unsloth import FastLanguageModel
 import torch
 
 # ── Choose model size ──
-MODEL_NAME = "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"  # For Colab T4
-# MODEL_NAME = "unsloth/Qwen2.5-7B-Instruct-bnb-4bit"  # For Colab A100
+MODEL_NAME = "unsloth/Qwen2.5-7B-Instruct-bnb-4bit"  # A100 / large GPU (see README figures)
+# MODEL_NAME = "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"  # T4 / smaller GPU
 # MODEL_NAME = "unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit"  # Alternative 8B
 
 MAX_SEQ_LENGTH = 2048
@@ -464,7 +464,7 @@ for task_id in ["easy", "medium", "hard"]:
 
 # Print comparison table
 print("╔═══════════╦══════════════╦══════════════╦══════════════╗")
-print("║ Task      ║  Heuristic   ║  SFT (3B)    ║  GRPO (3B)   ║")
+print("║ Task      ║  Heuristic   ║  SFT (7B)    ║  GRPO (7B)   ║")
 print("╠═══════════╬══════════════╬══════════════╬══════════════╣")
 for task_id in ["easy", "medium", "hard"]:
     h_avg = sum(baseline_scores[task_id]) / len(baseline_scores[task_id])
@@ -532,9 +532,9 @@ width = 0.25
 
 bars1 = ax.bar(x - width, heuristic_avgs, width, label="Heuristic (baseline)",
                color="#FF9800", edgecolor="white", linewidth=1.5)
-bars2 = ax.bar(x, sft_avgs, width, label="SFT (3B trained)",
+bars2 = ax.bar(x, sft_avgs, width, label="SFT (7B trained)",
                color="#2196F3", edgecolor="white", linewidth=1.5)
-bars3 = ax.bar(x + width, grpo_avgs, width, label="GRPO (3B optimized)",
+bars3 = ax.bar(x + width, grpo_avgs, width, label="GRPO (7B optimized)",
                color="#4CAF50", edgecolor="white", linewidth=1.5)
 
 # Add value labels
