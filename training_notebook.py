@@ -271,7 +271,7 @@ sft_config = SFTConfig(
     seed=42,
     max_seq_length=MAX_SEQ_LENGTH,
     dataset_text_field=None,  # Using messages format
-    report_to="none",  # Set to "wandb" if you have W&B
+    report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
 )
 
 sft_trainer = SFTTrainer(
@@ -420,7 +420,7 @@ grpo_config = GRPOConfig(
     seed=42,
     max_completion_length=64,
     num_generations=4,  # Number of completions per prompt
-    report_to="none",
+    report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
 )
 
 # Use a subset for GRPO (faster iteration)
