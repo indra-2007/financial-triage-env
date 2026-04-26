@@ -108,23 +108,24 @@
     <header>
       <div>
         <h1>Financial Triage <span class="day-pill">INR · OpenEnv</span></h1>
-        <p class="tag">Local stateful demo for screen recording (uses <code>/api/demo/*</code> — not the stateless <code>7860</code> HTTP <code>/step</code>)</p>
+        <p class="tag">Stateful <code>reset</code> → <code>step</code> → <code>grade</code> demo. Uses <code>/api/demo/*</code> on this server (the default OpenEnv HTTP <code>/step</code> is stateless, so we keep a small session API alongside it).</p>
       </div>
     </header>
 
     <div class="banner" style="margin-bottom:1rem">
-      <strong style="color:var(--text)">YouTube (under ~2 min):</strong> name the <strong>problem</strong> (INR household triage), the <strong>environment</strong> (one day = one action; dense reward; episode grader 0–1), and <strong>training</strong> (SFT + GRPO on Qwen2.5-7B with Unsloth/TRL; point to Colab, plots, and the HF Space). This UI is only to <strong>show a live step</strong> and reward.
+      <strong style="color:var(--text)">Judge quick path:</strong> pick a <strong>task</strong> + <strong>seed</strong> → <strong>Reset</strong> → click <strong>Fill baseline action</strong> → <strong>Step</strong> a few days → read the <strong>Last reward</strong> and the final <strong>Grade (0–1)</strong>. That grade is what the <em>headline</em> training bar chart averages, and the per-step reward is what GRPO actually optimizes. Full rubric map + numbers in <a href="https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/JUDGES.md" style="color:var(--accent);">JUDGES.md</a>.
     </div>
 
-    <details class="card" id="presenter" open style="margin-bottom:1rem">
-      <summary>Presenter outline (optional)</summary>
-      <p style="margin:0.5rem 0 0; color:var(--muted)">Rough script aligned with hackathon / README:</p>
+    <details class="card" id="presenter" style="margin-bottom:1rem">
+      <summary>Presenter outline (open if recording)</summary>
+      <p style="margin:0.5rem 0 0; color:var(--muted)">Rough 2-minute script, aligned with README / MINI_BLOG:</p>
       <ul>
-        <li><strong>00:00</strong> — “This is a <strong>day-by-day</strong> simulator: miss a payment and the ledger shows it; rules are in code, not a deck.”</li>
-        <li><strong>00:20</strong> — “Built on <strong>OpenEnv</strong>: <code>reset</code> → <code>step</code> until done → one <strong>grade</strong> in [0,1].”</li>
-        <li><strong>00:40</strong> — “We <strong>trained</strong> with <strong>Unsloth + TRL</strong>: SFT on heuristic demos, then <strong>GRPO</strong> with rewards from a <strong>live</strong> env step. Curves and Space link are in the repo.”</li>
-        <li><strong>01:00</strong> — Live demo: pick task, <strong>Reset</strong>, step a few days, show <strong>reward</strong> / <strong>episode score</strong> at the end.</li>
-        <li><strong>01:20</strong> — Point to the Hugging Face <strong>Space</strong>, Colab, and the short write-up URL from the README. End.</li>
+        <li><strong>00:00</strong> — "This is a day-by-day INR household-finance simulator. Rules are in code, not a deck."</li>
+        <li><strong>00:20</strong> — "Built on OpenEnv: <code>reset</code> → <code>step</code> until done → one <strong>grade</strong> in [0, 1], plus a dense per-step reward."</li>
+        <li><strong>00:40</strong> — "Training stack: SFT on heuristic demos, then GRPO on <em>live</em> <code>env.step</code> with a strict action-parser. Figures: <code>training_loss_7b.png</code>, <code>before_after_scores_7b.png</code>."</li>
+        <li><strong>01:00</strong> — Live: <strong>medium</strong>, seed 7, <strong>Reset</strong>, <strong>Fill baseline</strong>, <strong>Step</strong> — call out "Last reward" changing and events in the log.</li>
+        <li><strong>01:30</strong> — Step to end, read <strong>Grade (0-1)</strong>. Compare to the multi-seed heuristic mean in <code>heuristic_scores.json</code>.</li>
+        <li><strong>01:50</strong> — Point to Space URL, Colab, JUDGES.md. End.</li>
       </ul>
     </details>
 
@@ -177,7 +178,8 @@
           <button class="primary" type="button" id="btnStep" disabled>Step (submit action)</button>
           <button class="secondary" type="button" id="btnHeur" disabled>Fill baseline action</button>
         </div>
-        <p class="tag" style="margin-top:0.75rem">“Fill baseline” = hand-coded SFT / heuristic policy (same as the training baseline). Edit the form or use Step to apply.</p>
+        <p class="tag" style="margin-top:0.75rem"><strong>Fill baseline</strong> populates the form with the hand-coded heuristic action for the current day — the same policy that generated <code>sft_dataset.jsonl</code>. Edit any field, or just hit <strong>Step</strong> to apply it.</p>
+        <p class="tag" style="margin-top:0.5rem">Heuristic multi-seed means (n=60, from <code>heuristic_scores.json</code>): easy <strong>0.999</strong> · medium <strong>0.694</strong> · hard <strong>0.423</strong>. Aim to get somewhere near those for this seed after a full episode — or beat them on hard, which is the open door here.</p>
       </div>
       <div>
         <div class="card" style="margin-bottom:0.75rem">
