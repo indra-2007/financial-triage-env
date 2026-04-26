@@ -22,6 +22,19 @@ pinned: false
 
 </div>
 
+## Hackathon submission checklist (judges)
+
+| Requirement | This repo |
+|-------------|-----------|
+| **OpenEnv (current PyPI line)** | Built on [`openenv-core[core] >= 0.2.3`](https://pypi.org/project/openenv-core/); `Environment` in `server/my_env_environment.py`, [`openenv.yaml`](openenv.yaml), `create_app` in `server/app.py`. |
+| **Training in Colab (Unsloth + TRL)** | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) · [`financial_triage_training.ipynb`](financial_triage_training.ipynb) (SFT + **GRPO** on live `env.step`). |
+| **Experiment tracking** | Notebook sets `report_to='wandb'` when `WANDB_API_KEY` is set (Colab **Secrets** or shell); add your public **Weights & Biases** run URL in the [Materials](#judge-facing-links--materials) table after you train. |
+| **Proof of training (loss + reward / score)** | [`training_loss_7b.png`](training_loss_7b.png) (SFT loss vs step) and [`before_after_scores_7b.png`](before_after_scores_7b.png) (heuristic vs SFT vs GRPO episode scores) embedded under [Training and the published figures](#training-and-the-published-figures). |
+| **Write-up and/or short video (URLs only; no big files in Hub)** | [Links table](#judge-facing-links--materials) — [`MINI_BLOG.md`](MINI_BLOG.md) + [Hub view](https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/MINI_BLOG.md); add **YouTube** (under 2 min) or **HF post** URL in that table when published. |
+| **Runnable Space** | **[https://huggingface.co/spaces/indra-dhanush/financial-triage-env](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)** (submit this URL). |
+
+**Themes:** **#2** long-horizon (30/60/90 days) and **#3.1** economic world model (partial observability, INR)—see [Which hackathon themes this hits](#which-hackathon-themes-this-hits). **Rubric map:** [What each scoring criterion points to here](#what-each-scoring-criterion-points-to-here).
+
 **One missed trade-off shows up in the ledger on the next line—no deck makes that sting go away.** This is a day-by-day household-finance simulator in **INR**: you choose which bill eats cash first, when savings move, and which “fast money” offers to refuse. Every balance change follows code you can read and fight; outside citations only **frame** the story, while every rupee **inside** the run is synthetic, rule-bound, and reproducible. Slides reassure; this thing can still tell you **no**.
 
 ## Find your way around
@@ -32,16 +45,18 @@ pinned: false
 | **Hackathon** track fit (#2 / #3.1) | [Which hackathon themes this hits](#which-hackathon-themes-this-hits) |
 | **SFT + GRPO**, loss plot, bar chart | [Training and the published figures](#training-and-the-published-figures) |
 | **Daily** reward sum vs **episode** grader | [How step reward is shaped](#how-step-reward-is-shaped) · [Episode grade](#episode-grade) |
-| **Space**, Colab, `MINI_BLOG` | [Where to run it and what to read](#where-to-run-it-and-what-to-read) |
+| **Space**, Colab, `MINI_BLOG` | [Judge-facing links & materials](#judge-facing-links--materials) |
 
-## Where to run it and what to read
+## Judge-facing links & materials
 
 | What | Where |
 |------|--------|
-| Running Space | [huggingface.co/spaces/indra-dhanush/financial-triage-env](https://huggingface.co/spaces/indra-dhanush/financial-triage-env) |
-| Colab (see [What this stack is](#what-this-stack-is)) | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) — [`financial_triage_training.ipynb`](financial_triage_training.ipynb) |
-| Companion text | [`MINI_BLOG.md`](MINI_BLOG.md) — [on Hub](https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/MINI_BLOG.md) |
-| Short video (optional) | Add a public URL when ready; keep large video off the Space bundle. |
+| **Live Space (submit this URL)** | [https://huggingface.co/spaces/indra-dhanush/financial-triage-env](https://huggingface.co/spaces/indra-dhanush/financial-triage-env) |
+| **Colab training** (Unsloth + TRL; see [What this stack is](#what-this-stack-is)) | [Open in Colab](https://colab.research.google.com/github/indra-2007/financial-triage-env/blob/main/financial_triage_training.ipynb) — [`financial_triage_training.ipynb`](financial_triage_training.ipynb) |
+| **Mini write-up** (in-repo; copy to [HF Posts](https://huggingface.co/posts/new) if you want a separate post) | [`MINI_BLOG.md`](MINI_BLOG.md) — [view on Hub](https://huggingface.co/spaces/indra-dhanush/financial-triage-env/blob/main/MINI_BLOG.md) |
+| **Video (≤2 min, optional)** | *Add your public **YouTube** URL here after upload—do not commit video files to the Hub repo.* |
+| **Slides / deck (optional)** | *Add a public **Google Slides / Notion / PDF** link if you use one for the pitch.* |
+| **Experiment tracking (optional but recommended)** | With `WANDB_API_KEY` set, SFT and GRPO log to **Weights & Biases**; *paste your public W&B project or run URL here for judges.* |
 
 ## What happens each day: reset, step, grade
 
@@ -161,7 +176,7 @@ env = EnvClient.from_hub("indra-dhanush/financial-triage-env")
 obs = env.reset(task_id="hard")
 ```
 
-Colab training uses a **local clone** for throughput; the **network** entry is the Space URL in [Where to run it and what to read](#where-to-run-it-and-what-to-read). For client–only eval, point at that URL.
+Colab training uses a **local clone** for throughput; the **network** entry is the Space URL in [Judge-facing links & materials](#judge-facing-links--materials). For client–only eval, point at that URL.
 
 ## What this stack is
 
