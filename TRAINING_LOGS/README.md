@@ -24,12 +24,12 @@ Exactly what a reviewer asked for: the **env**, the **training scripts**, the **
 
 **3. Training logs**
 - `training_loss.png` — per-step SFT loss across 60 steps.
-- `training_run.json` — every hyperparameter plus the three-point comparison surfaced at eval time:
-  | Task | Heuristic (n=5) | SFT (n=5) |
-  |---|---:|---:|
-  | easy   | 0.999  | 0.933 |
-  | medium | 0.694  | 0.596 |
-  | hard   | 0.427  | 0.405 |
+- `training_run.json` — every hyperparameter plus the three-policy comparison surfaced at eval time (n=5 seeds per cell, scored in the same loop inside the Colab notebook):
+  | Task | Heuristic | SFT | GRPO on SFT |
+  |---|---:|---:|---:|
+  | easy   | 0.999  | 0.933 | 0.999 |
+  | medium | 0.694  | 0.596 | 0.692 |
+  | hard   | 0.427  | 0.405 | 0.415 |
 - `before_after_scores.png` — heuristic vs SFT vs GRPO, n=5 seeds, all three difficulties.
 
 ## What is NOT in this folder (honest accounting)
