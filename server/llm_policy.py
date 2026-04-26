@@ -7,7 +7,11 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
+
+from server._env_bootstrap import load_local_env
+
+load_local_env()
 
 from models import FinancialAction, FinancialObservation
 from inference import SYSTEM_PROMPT, observation_to_prompt, parse_action, format_action
@@ -21,7 +25,11 @@ def _llm_backends() -> List[str]:
     b: List[str] = []
     if os.environ.get("LLM_LOCAL_ADAPTER", "").strip():
         b.append("local")
-    if os.environ.get("LLM_BASE_URL", "").strip():
+    base = (os.environ.get("LLM_BASE_URL") or "").strip()
+    has_key = bool(
+        (os.environ.get("LLM_API_KEY") or os.environ.get("HF_TOKEN") or "").strip()
+    )
+    if base and has_key:
         b.append("api")
     return b
 
@@ -32,7 +40,7 @@ def llm_status() -> dict[str, Any]:
         "ready": bool(backs),
         "backends": backs,
         "local_adapter": bool(os.environ.get("LLM_LOCAL_ADAPTER", "").strip()),
-        "api": bool(os.environ.get("LLM_BASE_URL", "").strip()),
+        "llm_base_url_set": bool((os.environ.get("LLM_BASE_URL") or "").strip()),
     }
 
 
@@ -40,7 +48,11 @@ def _generate_text_api(*, system: str, user: str) -> str:
     from openai import OpenAI  # type: ignore
 
     base = os.environ["LLM_BASE_URL"].strip()
-    key = os.environ.get("LLM_API_KEY", "").strip() or "unused"
+    key = (
+        (os.environ.get("LLM_API_KEY") or os.environ.get("HF_TOKEN") or "")
+        .strip()
+        or "unused"
+    )
     model = os.environ.get("LLM_MODEL", "Qwen/Qwen2.5-7B-Instruct:hf-inference")
     max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "128"))
     temp = float(os.environ.get("LLM_TEMPERATURE", "0.1"))

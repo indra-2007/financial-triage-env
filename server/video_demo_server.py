@@ -20,6 +20,11 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+# Load <repo>/.env if present; maps HF_TOKEN → LLM_API_KEY when the latter is unset
+from server._env_bootstrap import load_local_env
+
+load_local_env()
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
