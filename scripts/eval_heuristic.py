@@ -28,6 +28,7 @@ if str(_ROOT) not in sys.path:
 
 from scripts.eval_utils import (  # noqa: E402
     do_nothing_policy,
+    greedy_apr_policy,
     heuristic_policy,
     random_valid_policy,
     run_episode,
@@ -38,6 +39,7 @@ from scripts.eval_utils import (  # noqa: E402
 TASKS = ("easy", "medium", "hard")
 POLICIES = {
     "heuristic": heuristic_policy,
+    "greedy_apr": greedy_apr_policy,
     "do_nothing": do_nothing_policy,
     "random_valid": random_valid_policy,
 }
@@ -76,18 +78,23 @@ def save_figure(results: Dict[str, Dict[str, Dict]], path: Path) -> None:
     import numpy as np
 
     tasks = list(TASKS)
-    order = ["heuristic", "random_valid", "do_nothing"]
-    colors = {"heuristic": "#ff8c42", "random_valid": "#67a4d9", "do_nothing": "#888888"}
+    order = ["heuristic", "greedy_apr", "random_valid", "do_nothing"]
+    colors = {
+        "heuristic": "#ff8c42",
+        "greedy_apr": "#2a9b8c",
+        "random_valid": "#67a4d9",
+        "do_nothing": "#888888",
+    }
 
     means = {p: [results[p][t]["summary"]["mean"] for t in tasks] for p in order}
     lows = {p: [results[p][t]["summary"]["ci_low"] for t in tasks] for p in order}
     highs = {p: [results[p][t]["summary"]["ci_high"] for t in tasks] for p in order}
 
     x = np.arange(len(tasks))
-    width = 0.26
+    width = 0.20
     fig, ax = plt.subplots(figsize=(8, 4.8))
     for i, p in enumerate(order):
-        xs = x + (i - 1) * width
+        xs = x + (i - 1.5) * width
         y = means[p]
         lo = [y[j] - lows[p][j] for j in range(len(tasks))]
         hi = [highs[p][j] - y[j] for j in range(len(tasks))]

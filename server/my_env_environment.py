@@ -107,6 +107,13 @@ class MyEnvironment(Environment):
         self._savings_deposited_today: bool = False
         self._negotiated_bills: set = set()
 
+        # UPI micro-spend layer — defaults here so callers that hit /step
+        # without a prior reset (or use a fresh session instance) don't
+        # AttributeError. reset() overwrites both with the task config.
+        self._upi_config: Optional[Dict[str, Any]] = None
+        self._upi_total_micro_spend: float = 0.0
+        self._last_breakdown: Dict[str, float] = {}
+
         # Episode history for grading (initialized with defaults for safety)
         self._history: Dict[str, Any] = {
             "overdraft_days": 0,

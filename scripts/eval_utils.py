@@ -55,6 +55,49 @@ def random_valid_policy(env: MyEnvironment, obs) -> FinancialAction:
     return rng.choice(pool)
 
 
+def greedy_apr_policy(env: MyEnvironment, obs) -> FinancialAction:
+    """Scripted "greedy by APR" baseline: clear urgent bills first, then the
+    highest-APR live debt before anything else. This is the obvious
+    rule-of-thumb a personal-finance blog would recommend, and it is the
+    stronger baseline the README limitations section promised.
+
+    Decision order:
+      1. Medical emergency (if unpaid and affordable) — same as heuristic.
+      2. Any bill that is due today or tomorrow and payable in full.
+      3. Largest extra principal we can afford on the highest-APR debt.
+      4. Otherwise fall back to the shared heuristic (minimums, savings buffer, …).
+    """
+    if getattr(obs, "active_emergency", None) and not obs.active_emergency.is_paid:
+        if obs.account.checking_balance >= obs.active_emergency.amount:
+            return FinancialAction(
+                action_type=ActionType.PAY_BILL_FULL,
+                bill_id=obs.active_emergency.id,
+            )
+
+    for b in sorted(obs.bills or [], key=lambda b: b.due_day):
+        if not b.is_paid and b.due_day <= obs.current_day + 1:
+            if obs.account.checking_balance >= b.amount + 500:
+                return FinancialAction(
+                    action_type=ActionType.PAY_BILL_FULL, bill_id=b.id,
+                )
+
+    live_debts = [d for d in (obs.debts or []) if d.principal > 1.0 and d.apr > 0]
+    if live_debts:
+        target = max(live_debts, key=lambda d: d.apr)
+        buffer = 3000.0 if obs.current_day < 5 else 2000.0
+        headroom = obs.account.checking_balance - buffer
+        if headroom >= 500.0:
+            chunk = min(round(headroom, 2), round(target.principal, 2))
+            if chunk >= 100.0:
+                return FinancialAction(
+                    action_type=ActionType.PAY_EXTRA_DEBT,
+                    debt_id=target.id,
+                    amount=chunk,
+                )
+
+    return _heuristic_action(obs)
+
+
 def run_episode(
     policy: Policy,
     task_id: str,
@@ -153,9 +196,27 @@ def ablate_festival(env: MyEnvironment) -> None:
     env._active_festival = None  # type: ignore[attr-defined]
 
 
+def ablate_interest(env: MyEnvironment) -> None:
+    """Zero out every debt APR so interest never accrues."""
+    for d in env._debts:  # type: ignore[attr-defined]
+        d["apr"] = 0.0
+
+
+def ablate_peer_pressure(env: MyEnvironment) -> None:
+    """Remove P2P pressure while keeping the stochastic UPI micro-spend layer.
+    Isolates 'friend asks for money' from 'daily chai costs something'."""
+    if getattr(env, "_upi_config", None):
+        cfg = dict(env._upi_config)  # type: ignore[attr-defined]
+        cfg["p2p_pressure_days"] = []
+        cfg["p2p_amounts"] = []
+        env._upi_config = cfg  # type: ignore[attr-defined]
+
+
 ABLATIONS: Dict[str, Callable[[MyEnvironment], None]] = {
     "full": _noop,
     "no_upi_micro_spend": ablate_upi,
     "no_medical_emergency": ablate_medical,
     "no_festival": ablate_festival,
+    "no_interest_accrual": ablate_interest,
+    "no_peer_pressure": ablate_peer_pressure,
 }

@@ -34,10 +34,10 @@ Open the Space URL and a browser lands on **`/demo/`**: pick a task, pick a seed
 
 | Weight | Criterion | Where to look |
 |-------:|-----------|---------------|
-| **40%** | Innovation | 14 additive reward terms in `_compute_reward`: overdraft, on-time bill pay, APR-weighted debt service, credit-score delta, savings-growth (gated against same-day withdraw-and-redeposit churn), liquidity-buffer bonus, 7-day action diversity; minus late pay, interest bleed, default, predatory-loan carry, and consecutive do-nothing streaks. UPI micro-spends and peer-pressure nudges run on top. The informal-lender quote in the observation advertises a per-day rate that hides a 240–365% APR. The [environment ablation](#environment-ablation-the-mechanics-actually-bind) shows these mechanics bind on the baseline, not just on paper. |
+| **40%** | Innovation | 14 additive reward terms in `_compute_reward`: overdraft, on-time bill pay, APR-weighted debt service, credit-score delta, savings-growth (gated against same-day withdraw-and-redeposit churn), liquidity-buffer bonus, 7-day action diversity; minus late pay, interest bleed, default, predatory-loan carry, and consecutive do-nothing streaks. UPI micro-spends and peer-pressure nudges run on top. The informal-lender quote in the observation advertises a per-day rate that hides a 240–365% APR. The [environment ablation](#environment-ablation-the-mechanics-actually-bind) shows these mechanics bind on the baseline, not just on paper. Judges can fire each of the 14 terms on a chosen `(task, seed, day, action)` with `python -m scripts.inspect_reward`. |
 | **30%** | Story | This README (aimed at a five-minute read) plus [`MINI_BLOG.md`](MINI_BLOG.md) and the `/demo/` UI. |
-| **20%** | Training evidence | [`training_loss_7b.png`](training_loss_7b.png), [`before_after_scores_7b.png`](before_after_scores_7b.png), plus the multi-seed artifacts [`heuristic_scores.json`](heuristic_scores.json) / [`heuristic_scores_ci.png`](heuristic_scores_ci.png) and [`ablation_env.json`](ablation_env.json) / [`ablation_env.png`](ablation_env.png). |
-| **10%** | Reward and pipeline | The GRPO `reward_fn` does not call `grade_episode`. For each row it replays the stored expert `prefix_actions` on the same `(task_id, seed)` to reconstruct the exact day-`d` observation, strictly parses the model's single action (no heuristic fallback if parsing fails), runs one `env.step`, and optimizes the scaled dense return `_last_breakdown['total']` — with the end-of-episode bonus folded into the last day. `grade_episode` is reserved for the bar chart and for the Space's `/score` endpoint, so the two signals stay distinct. |
+| **20%** | Training evidence | [`training_loss_7b.png`](training_loss_7b.png), [`before_after_scores_7b.png`](before_after_scores_7b.png), the four-policy multi-seed artifacts [`heuristic_scores.json`](heuristic_scores.json) / [`heuristic_scores_ci.png`](heuristic_scores_ci.png), the six-ablation study [`ablation_env.json`](ablation_env.json) / [`ablation_env.png`](ablation_env.png), the seed-matched scatter [`paired_scores_hard.png`](paired_scores_hard.png), and the stochasticity audit [`stochasticity_report.json`](stochasticity_report.json). |
+| **10%** | Reward and pipeline | The GRPO `reward_fn` does not call `grade_episode`. For each row it replays the stored expert `prefix_actions` on the same `(task_id, seed)` to reconstruct the exact day-`d` observation, strictly parses the model's single action (no heuristic fallback if parsing fails), runs one `env.step`, and optimizes the scaled dense return `_last_breakdown['total']` — with the end-of-episode bonus folded into the last day. `grade_episode` is reserved for the bar chart and for the Space's `/score` endpoint, so the two signals stay distinct. Invariants checked by [`tests/test_reward_properties.py`](tests/test_reward_properties.py) (on-time beats do-nothing, overdraft fires at -25, do-nothing streak triggers the inaction term, same-day withdraw-redeposit earns no savings credit, grade ∈ (0,1) on every difficulty). |
 
 **Track fit.** This submission targets **#2 Long-horizon planning** — 30 / 60 / 90-day arcs where interest and bills compound — and **#3.1 Economic / world modeling** — stochastic paydays, partial observability between loan labels and APRs, mechanical default and overdraft. Multi-agent (#1) and self-spawning curricula (#4) are out of scope on purpose.
 
@@ -77,10 +77,11 @@ Produced by [`scripts/eval_heuristic.py`](scripts/eval_heuristic.py) with `n = 6
 | Policy | easy | medium | hard (95% CI) |
 |--------|------|--------|---------------|
 | **heuristic** — the rule I hand-wrote; also the SFT data source and the `/demo/` Fill-baseline button | **0.999** | **0.694** | **0.423** [0.417, 0.428] |
-| `random_valid` — uniform over do-nothing, pay-bill, pay-minimum | 0.933 | 0.496 | 0.421 |
-| `do_nothing` — null baseline; skip every day | 0.578 | 0.295 | 0.316 |
+| `greedy_apr` — the obvious textbook advice: clear the highest-APR debt first | 0.999 | 0.223 | 0.294 [0.293, 0.295] |
+| `random_valid` — uniform over do-nothing, pay-bill, pay-minimum | 0.933 | 0.496 | 0.421 [0.419, 0.423] |
+| `do_nothing` — null baseline; skip every day | 0.578 | 0.295 | 0.316 [0.316, 0.317] |
 
-Read: easy is close to solved by the rule, medium opens the clean ordering `heuristic ≫ random ≫ do_nothing`, and **hard** is where my rule-based teacher stops being a wall — it only edges `random_valid` by Δ ≈ 0.002 at n = 60. That is the honest finding, and it is exactly why the environment is interesting for SFT then GRPO: the student has room to actually beat the teacher. Flat CIs on easy and medium mean the rounded grade lands on the same value once the RNG-driven day-to-day details wash out; hard has real seed variance and the CI reflects it.
+Read: easy is close to solved by the rule, medium opens the clean ordering `heuristic ≫ random ≫ do_nothing`, and **hard** is where my rule-based teacher stops being a wall — it only edges `random_valid` by Δ ≈ 0.002 at n = 60. That is the honest finding, and it is exactly why the environment is interesting for SFT then GRPO: the student has room to actually beat the teacher. The `greedy_apr` row is the "pay the 365% moneylender first" advice a personal-finance column would give; in this environment it drops below `do_nothing` on both medium and hard because it drains the checking account ahead of bills and the medical shock — which is the honest reason `do_nothing` is a non-trivial null baseline here. Flat CIs on easy and medium mean the rounded grade lands on the same value once the RNG-driven day-to-day details wash out; hard has real seed variance and the CI reflects it. A per-seed scatter with a heuristic − random_valid histogram lives in [`paired_scores_hard.png`](paired_scores_hard.png).
 
 ## Environment ablation: the mechanics actually bind
 
@@ -92,10 +93,12 @@ Same heuristic, same `n = 40` seeds, one configured mechanic nulled out per run.
 |----------------------|------------|-------------|
 | **full** — shipping env | **0.421** | — |
 | `no_medical_emergency` | 0.594 | **+0.17** |
+| `no_interest_accrual` | 0.501 | **+0.08** |
 | `no_upi_micro_spend` | 0.483 | **+0.06** |
+| `no_peer_pressure` | 0.446 | +0.02 |
 | `no_festival` | 0.444 | +0.02 |
 
-Medical shocks are the single largest binding constraint on the heuristic in Hard; UPI leaks are a consistent lower-magnitude drag; festive-week pressure is smaller but real. Easy and medium barely move under the same ablation — which is what three separate difficulties should look like.
+Medical shocks are the single largest binding constraint on the heuristic in Hard; interest on the four-debt stack is the second; UPI leaks are a consistent lower-magnitude drag; peer-pressure P2P pings and festive-week pressure are smaller but real. The same study on medium finds interest accrual moves the grade from 0.694 → 0.818, which is the mechanical answer to "why is a rule-based teacher capped here?" — the APR stack is doing the work, not the grader.
 
 ## Training: SFT, then GRPO against live `env.step`
 
@@ -135,10 +138,15 @@ Run it locally with `python -m server.video_demo_server` and hit `http://127.0.0
 git clone https://huggingface.co/spaces/indra-dhanush/financial-triage-env
 cd financial-triage-env && pip install -e .
 
-uvicorn server.app:app --host 0.0.0.0 --port 7860
-python -m scripts.eval_heuristic --seeds 60
-python -m scripts.ablation_env --seeds 40
-python -m server.video_demo_server
+uvicorn server.app:app --host 0.0.0.0 --port 7860            # OpenEnv API
+python -m server.video_demo_server                           # /demo/ UI (8088)
+python -m scripts.eval_heuristic      --seeds 60             # four-policy multi-seed
+python -m scripts.ablation_env        --seeds 40             # six-ablation study
+python -m scripts.paired_scores                              # per-seed hard-task scatter
+python -m scripts.verify_stochasticity --seeds 30            # env-vs-grader audit
+python -m scripts.inspect_reward --task medium --seed 7 --action pay_bill_full --arg rent
+python -m scripts.check_openenv --base http://127.0.0.1:7860 # OpenEnv compliance
+python -m pytest tests/                                      # reward-property tests
 ```
 
 ```python
@@ -155,10 +163,10 @@ Both evaluation scripts are standard-library plus `numpy` and `matplotlib`; no G
 
 ## What I would not over-claim
 
-- On **hard**, the heuristic only edges `random_valid` by Δ ≈ 0.002 at n = 60. The rule-based teacher is not optimal, which is a feature for SFT → GRPO but also means an SFT-only student can match the teacher without really solving the task. That is exactly the gap GRPO is there to cross.
-- On **easy** and **medium**, rounded grades flatten across seeds. The intra-episode story still varies; for seed-level comparisons use the dense per-step return, which is what GRPO optimizes against anyway.
+- On **hard**, the heuristic only edges `random_valid` by Δ ≈ 0.002 at n = 60. The rule-based teacher is not optimal, which is a feature for SFT → GRPO but also means an SFT-only student can match the teacher without really solving the task. That is exactly the gap GRPO is there to cross. The per-seed scatter in [`paired_scores_hard.png`](paired_scores_hard.png) shows the win/loss split directly rather than hiding it in the mean.
+- On **easy** and **medium**, rounded grades flatten across seeds but the env is not deterministic. [`scripts/verify_stochasticity.py`](scripts/verify_stochasticity.py) reports ₹3,288 of std in day-10 checking balance on medium across 30 seeds with σ(score) = 0 — the state evolves, the grader just happens to be event-driven at this configuration. For seed-level comparisons use the dense per-step return, which is what GRPO optimizes against anyway.
 - APRs, Diwali magnitudes, and UPI leak rates are **calibrated** from published Indian-finance statistics cited in [`tasks.py`](tasks.py). They are not fit to any real household panel, and the grader is a design object, not an econometric estimate.
-- **Next on the list.** A seed-matched "model minus heuristic" plot, a stronger scripted baseline (greedy by APR), sampled rather than hard-coded emergency timing and informal-loan APRs, and the LoRA adapters pushed as a separate Model Hub repo.
+- **Next on the list.** A seed-matched "model − heuristic" plot once new GRPO checkpoints land, sampled rather than hard-coded emergency timing and informal-loan APRs, and the LoRA adapters pushed as a separate Model Hub repo.
 
 ## Stack and manifest
 
