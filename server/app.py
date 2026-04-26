@@ -42,6 +42,14 @@ except ImportError:
     from models import MyAction, MyObservation
     from server.my_env_environment import MyEnvironment
 
+try:
+    from .video_demo_server import include_video_demo_in_app
+except ImportError:
+    from server.video_demo_server import include_video_demo_in_app
+
+from fastapi import Request
+from fastapi.responses import RedirectResponse
+
 
 # Create the app with web interface and README integration
 app = create_app(
@@ -52,8 +60,15 @@ app = create_app(
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 
+# Stateful pitch UI + /api/* (local session) — not in OpenEnv's stateless HTTP /step
+include_video_demo_in_app(app, static_at="/demo", include_cors=False)
+
+
 @app.get("/")
-def read_root():
+def read_root(request: Request):
+    # Browsers: land on the interactive demo. API clients: keep JSON.
+    if "text/html" in (request.headers.get("accept") or ""):
+        return RedirectResponse(url="/demo/", status_code=302)
     return {"status": "ok", "message": "Environment is running on Hugging Face Spaces"}
 
 @app.get("/health")
