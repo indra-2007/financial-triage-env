@@ -96,10 +96,25 @@ def plot_baselines() -> Path:
     return out
 
 
+def _paired_diff_ci(
+    full_scores: list[float],
+    abl_scores: list[float],
+    n_boot: int = 5000,
+    alpha: float = 0.05,
+    rng: np.random.Generator | None = None,
+) -> tuple[float, float, float]:
+    """Return (mean_delta, ci_low, ci_high) of (abl - full) via paired bootstrap."""
+    rng = rng or np.random.default_rng(0)
+    diffs = np.asarray(abl_scores) - np.asarray(full_scores)
+    n = len(diffs)
+    idx = rng.integers(0, n, size=(n_boot, n))
+    boot_means = diffs[idx].mean(axis=1)
+    return float(diffs.mean()), float(np.quantile(boot_means, alpha / 2)), float(np.quantile(boot_means, 1 - alpha / 2))
+
+
 def plot_ablations() -> Path:
     data = _load("ablation_env.json")
-    order = [
-        "full",
+    ablations = [
         "no_medical_emergency",
         "no_interest_accrual",
         "no_upi_micro_spend",
@@ -107,57 +122,71 @@ def plot_ablations() -> Path:
         "no_festival",
     ]
     pretty = {
-        "full": "full env",
         "no_medical_emergency": "no medical emergency",
         "no_interest_accrual": "no interest accrual",
         "no_upi_micro_spend": "no UPI micro-spend",
         "no_peer_pressure": "no peer pressure",
         "no_festival": "no festival",
     }
-    colors = {
-        "full": "#2C3E50",
-        "no_medical_emergency": "#E74C3C",
-        "no_interest_accrual": "#E67E22",
-        "no_upi_micro_spend": "#F1C40F",
-        "no_peer_pressure": "#9B59B6",
-        "no_festival": "#3498DB",
-    }
-    tasks = _task_order()
-    n_seeds = data["full"][tasks[0]]["summary"]["n"]
+    full_scores = data["full"]["hard"]["scores"]
+    full_mean = float(np.mean(full_scores))
+    n_seeds = data["full"]["hard"]["summary"]["n"]
 
-    fig, ax = plt.subplots(figsize=(11.5, 5.8))
-    x = np.arange(len(tasks))
-    width = 0.13
+    rows = []
+    for ab in ablations:
+        abl_scores = data[ab]["hard"]["scores"]
+        abl_mean = float(np.mean(abl_scores))
+        delta, lo, hi = _paired_diff_ci(full_scores, abl_scores)
+        rows.append((ab, abl_mean, delta, lo, hi))
+    rows.sort(key=lambda r: r[2], reverse=True)
 
-    for i, ab in enumerate(order):
-        means = [data[ab][t]["summary"]["mean"] for t in tasks]
-        lows = [data[ab][t]["summary"]["ci_low"] for t in tasks]
-        highs = [data[ab][t]["summary"]["ci_high"] for t in tasks]
-        yerr = np.array([
-            [m - lo for m, lo in zip(means, lows)],
-            [hi - m for m, hi in zip(means, highs)],
-        ])
-        offset = (i - (len(order) - 1) / 2) * width
-        bars = ax.bar(
-            x + offset, means, width, yerr=yerr, capsize=2,
-            label=pretty[ab], color=colors[ab], edgecolor="black", linewidth=0.5,
-        )
-        for b, m in zip(bars, means):
-            ax.text(b.get_x() + b.get_width() / 2, b.get_height() + 0.012,
-                    f"{m:.2f}", ha="center", va="bottom", fontsize=7.5)
+    fig, ax = plt.subplots(figsize=(11.0, 5.2))
+    y = np.arange(len(rows))
+    deltas = [r[2] for r in rows]
+    lows = [r[2] - r[3] for r in rows]
+    highs = [r[4] - r[2] for r in rows]
+    # Color the top bar as the accent; fade the rest in a single neutral.
+    bar_colors = ["#E74C3C"] + ["#34495E"] * (len(rows) - 1)
 
-    ax.set_xticks(x)
-    ax.set_xticklabels([_pretty_task(t) for t in tasks])
-    ax.set_ylabel("Heuristic mean episode score (0–1)")
-    ax.set_ylim(0, 1.12)
-    ax.set_title(
-        f"Environment ablation: score when a configured mechanic is disabled "
-        f"(heuristic policy, n={n_seeds} seeds per cell)",
-        fontsize=12,
+    ax.barh(
+        y, deltas, xerr=np.array([lows, highs]), capsize=4,
+        color=bar_colors, edgecolor="black", linewidth=0.6, height=0.62,
     )
-    ax.yaxis.grid(True, linestyle=":", alpha=0.5)
+    # Pad so labels sit right next to each bar end (uniformly), not far to the right.
+    max_right = max(d + h for d, h in zip(deltas, highs))
+    pad = max_right * 0.015
+    for i, (_, abl_mean, d, _, _) in enumerate(rows):
+        bar_end = d + highs[i]
+        ax.text(
+            bar_end + pad, i,
+            f"Δ {d:+.3f}   ({full_mean:.3f} → {abl_mean:.3f})",
+            va="center", fontsize=10,
+        )
+
+    ax.axvline(0, color="#2C3E50", linestyle="--", linewidth=1.1)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels([pretty[r[0]] for r in rows], fontsize=11)
+    ax.invert_yaxis()
+    ax.set_xlabel(
+        f"Δ mean episode score vs full env  (paired bootstrap, 95% CI; full env baseline = {full_mean:.3f})"
+    )
+    # Leave ~38% horizontal headroom for the right-hand text labels.
+    ax.set_xlim(min(-0.015, min(lo for _, _, _, lo, _ in rows) * 1.2),
+                max_right * 1.55)
+    ax.xaxis.grid(True, linestyle=":", alpha=0.5)
     ax.set_axisbelow(True)
-    ax.legend(loc="upper left", ncol=2, fontsize=9, frameon=True)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    fig.suptitle(
+        f"Environment ablation — hard task (heuristic policy, n={n_seeds} seeds, one mechanic nulled per run)",
+        fontsize=12, y=0.995,
+    )
+    ax.set_title(
+        "Positive Δ means the mechanic is binding on the baseline. "
+        "Medium-task deltas are in ablation_env.json; only no_interest_accrual (+0.124) moves the medium grade.",
+        fontsize=9.5, loc="left", color="#555", pad=6,
+    )
     fig.tight_layout()
     out = ROOT / "ablation_env.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")

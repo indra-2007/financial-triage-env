@@ -117,20 +117,20 @@ Read: easy is close to solved by the rule, medium opens the clean ordering `heur
 
 ## Environment ablation: the mechanics actually bind
 
-Same heuristic, same `n = 40` seeds, one configured mechanic nulled out per run. If the score rises with a mechanic disabled, that mechanic is binding on the baseline. From [`scripts/ablation_env.py`](scripts/ablation_env.py); re-run with `python -m scripts.ablation_env --seeds 40`.
+Same heuristic, same `n = 40` seeds, one configured mechanic nulled out per run. Positive Δ means the mechanic is *binding* on the baseline — the score *rises* when it is removed, so the mechanic is doing real work. Bars are sorted by effect size; whiskers are the 95% *paired* bootstrap CI over matched seeds, so small differences are visibly separated from noise. From [`scripts/ablation_env.py`](scripts/ablation_env.py); re-run with `python -m scripts.ablation_env --seeds 40`, then re-plot with `python -m scripts.regenerate_figures`.
 
-<p align="center"><img src="ablation_env.png" alt="Heuristic score on hard when one mechanic is disabled" width="720" /></p>
+<p align="center"><img src="ablation_env.png" alt="Paired-Δ bar chart of heuristic score uplift on hard when one environment mechanic is disabled (n=40 seeds, 95% bootstrap CI)" width="780" /></p>
 
-| Ablation (hard task) | Mean score | Δ vs `full` |
-|----------------------|------------|-------------|
+| Ablation (hard task) | Mean score | Δ vs `full` (paired) |
+|----------------------|-----------:|---------------------:|
 | **full** — shipping env | **0.421** | — |
-| `no_medical_emergency` | 0.594 | **+0.17** |
-| `no_interest_accrual` | 0.501 | **+0.08** |
-| `no_upi_micro_spend` | 0.483 | **+0.06** |
-| `no_peer_pressure` | 0.446 | +0.02 |
-| `no_festival` | 0.444 | +0.02 |
+| `no_medical_emergency` | 0.594 | **+0.172** |
+| `no_interest_accrual` | 0.501 | **+0.080** |
+| `no_upi_micro_spend` | 0.483 | **+0.061** |
+| `no_peer_pressure` | 0.446 | +0.024 |
+| `no_festival` | 0.444 | +0.023 |
 
-Medical shocks are the single largest binding constraint on the heuristic in Hard; interest on the four-debt stack is the second; UPI leaks are a consistent lower-magnitude drag; peer-pressure P2P pings and festive-week pressure are smaller but real. The same study on medium finds interest accrual moves the grade from 0.694 → 0.818, which is the mechanical answer to "why is a rule-based teacher capped here?" — the APR stack is doing the work, not the grader.
+Medical shocks are the single largest binding constraint on the heuristic in hard; interest on the four-debt stack is second; UPI leaks are a consistent lower-magnitude drag; peer-pressure P2P pings and festive-week pressure are smaller but distinguishable from zero. The same study on *medium* finds only one binding mechanic — `no_interest_accrual` moves the grade 0.694 → 0.818 (+0.124); the other four ablations leave the medium grade unchanged to within 0.01. That is the mechanical answer to "why is a rule-based teacher capped on medium?" — the APR stack is doing the work, not the grader. Full per-task numbers in [`ablation_env.json`](ablation_env.json).
 
 ## Training: SFT, then GRPO against live `env.step`
 
