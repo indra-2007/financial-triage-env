@@ -80,6 +80,7 @@ Every link below points at something committed to the repo or live on the Space;
 | Reward inspector (fire any of the 14 terms) | [`scripts/inspect_reward.py`](scripts/inspect_reward.py) |
 | OpenEnv HTTP compliance smoke test (15 checks) | [`scripts/check_openenv.py`](scripts/check_openenv.py) |
 | Reward-invariant unit tests | [`tests/test_reward_properties.py`](tests/test_reward_properties.py) |
+| Figure regeneration (README plots from JSON) | [`scripts/regenerate_figures.py`](scripts/regenerate_figures.py) |
 | Write-up / mini-blog | [`MINI_BLOG.md`](MINI_BLOG.md) |
 | Training logs | [`TRAINING_LOGS/`](TRAINING_LOGS/) bundles [`training_loss.png`](TRAINING_LOGS/training_loss.png) (SFT curve, 60 steps), [`before_after_scores.png`](TRAINING_LOGS/before_after_scores.png) (heuristic vs SFT vs GRPO, n=5), [`training_run.json`](TRAINING_LOGS/training_run.json) (every hyperparameter + every scalar metric preserved from the Colab run), and a [README](TRAINING_LOGS/README.md) that is explicit about what is and is not committed. Both training scripts and the notebook set `report_to='wandb'` when `WANDB_API_KEY` is present, so a reviewer re-running on their own W&B workspace gets the full per-step log without my key in the loop. |
 
@@ -137,11 +138,11 @@ SFT is behavioral cloning on heuristic rollouts (`sft_dataset.jsonl`). The point
 
 GRPO runs in TRL on an Unsloth-quantized **Qwen2.5-7B-Instruct**. Each row carries a prefix of expert actions; the trainer replays that prefix deterministically on the row's `(task_id, seed)` to rebuild the day-`d` state, the model emits one action string, the parser accepts it strictly, one `env.step` runs, and the optimizer sees the scaled dense reward. Checkpoints are LoRA adapters — merge with Unsloth when you need a single-file export, and smoke-test inference afterwards because bad merges hide until decode.
 
-<p align="center"><img src="training_loss_7b.png" alt="SFT training loss vs optimizer step for the 7B run" width="560" /></p>
+<p align="center"><img src="training_loss_7b.png" alt="SFT training loss vs optimizer step for the 7B run" width="620" /></p>
 
-<p align="center"><img src="before_after_scores_7b.png" alt="Mean episode score by difficulty: heuristic, SFT, GRPO" width="720" /></p>
+<p align="center"><img src="before_after_scores_7b.png" alt="Heuristic vs SFT (Qwen2.5-7B) mean episode score on a single-pass n=5 evaluation" width="720" /></p>
 
-Bars are one evaluation pass inside the notebook. The multi-seed heuristic numbers above (from `heuristic_scores.json`) are what I quote in prose.
+SFT on 60 steps takes the 7B model from 2.25 → 0.12 log-loss on the heuristic-rollout dataset. The single-pass evaluation above (n=5 seeds per cell, from [`TRAINING_LOGS/training_run.json`](TRAINING_LOGS/training_run.json)) shows SFT recovering ~93–95% of the heuristic grade without being trained to maximize the grader — it is trained on text. GRPO eval numbers from the Colab run are not plotted here because I did not preserve them in a committed JSON; re-running `python -m scripts.train_grpo` reproduces them on any CUDA GPU. The multi-seed heuristic numbers above (from [`heuristic_scores.json`](heuristic_scores.json), n=60) are the ones I quote in prose.
 
 <details><summary>Reward breakdown</summary>
 
@@ -177,6 +178,7 @@ python -m scripts.paired_scores                              # per-seed hard-tas
 python -m scripts.verify_stochasticity --seeds 30            # env-vs-grader audit
 python -m scripts.inspect_reward --task medium --seed 7 --action pay_bill_full --arg rent
 python -m scripts.check_openenv --base http://127.0.0.1:7860 # OpenEnv compliance
+python -m scripts.regenerate_figures                         # re-plot every README figure from JSON
 python -m pytest tests/                                      # reward-property tests
 ```
 
