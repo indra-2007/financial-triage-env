@@ -50,7 +50,9 @@ Open the Space URL and a browser lands on **`/demo/`**: pick a task, pick a seed
 | Write-up | [`MINI_BLOG.md`](MINI_BLOG.md) |
 | Multi-seed baseline evaluation | [`heuristic_scores.json`](heuristic_scores.json) · [`heuristic_scores_ci.png`](heuristic_scores_ci.png) — [`scripts/eval_heuristic.py`](scripts/eval_heuristic.py) |
 | Environment ablation | [`ablation_env.json`](ablation_env.json) · [`ablation_env.png`](ablation_env.png) — [`scripts/ablation_env.py`](scripts/ablation_env.py) |
-| Weights & Biases | The notebook logs to W&B whenever `WANDB_API_KEY` is set. |
+| Training scripts (standalone) | [`scripts/train_sft.py`](scripts/train_sft.py) · [`scripts/train_grpo.py`](scripts/train_grpo.py) |
+| Training logs + config dump | [`TRAINING_LOGS/`](TRAINING_LOGS/) — `training_run.json`, `training_loss.png`, `before_after_scores.png`, README. |
+| Weights & Biases | Both training scripts set `report_to='wandb'` when `WANDB_API_KEY` is set; the notebook does the same. |
 
 ## The daily loop: reset, step, grade
 

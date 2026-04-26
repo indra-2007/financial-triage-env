@@ -1,0 +1,76 @@
+{
+  "model": "unsloth/Qwen2.5-7B-Instruct-bnb-4bit",
+  "hardware": "Tesla T4 (Google Colab, 14.5 GB VRAM)",
+  "torch": "2.10.0+cu128",
+  "unsloth": "2026.4.8",
+  "transformers": "5.5.0",
+  "sft_hyperparameters": {
+    "dataset_rows": 180,
+    "max_seq_length": 1024,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "effective_batch_size": 8,
+    "max_steps": 60,
+    "learning_rate": 0.0002,
+    "warmup_steps": 5,
+    "weight_decay": 0.01,
+    "optimizer": "adamw_8bit",
+    "lr_scheduler": "linear",
+    "seed": 3407,
+    "lora_r": 16,
+    "lora_alpha": 16,
+    "lora_dropout": 0.0,
+    "lora_targets": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "mixed_precision": "bf16 if bf16_supported else fp16",
+    "packing": true
+  },
+  "grpo_hyperparameters": {
+    "prompt_rows": 180,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 4,
+    "num_train_epochs": 1,
+    "learning_rate": 5e-05,
+    "logging_steps": 5,
+    "max_completion_length": 64,
+    "num_generations": 4,
+    "optimizer": "adamw_8bit",
+    "reward_clipping": "[-1.0, 1.0] on scaled _last_breakdown['total']/30",
+    "reward_on_parse_fail": -1.0
+  },
+  "scores_from_notebook_run": {
+    "heuristic_baseline_n5": {
+      "easy": 0.999,
+      "medium": 0.6937,
+      "hard": 0.4266
+    },
+    "sft_n5": {
+      "easy": 0.9327,
+      "medium": 0.596,
+      "hard": 0.4054
+    }
+  },
+  "artifacts_in_repo": {
+    "training_loss_png": "training_loss_7b.png",
+    "before_after_png": "before_after_scores_7b.png",
+    "raw_notebook": "financial_triage_training.ipynb",
+    "sft_dataset": "sft_dataset.jsonl",
+    "per_step_loss_json": "not preserved in the committed notebook; re-run scripts.train_sft for outputs/sft/trainer_state.json",
+    "grpo_trainer_state": "not preserved; re-run scripts.train_grpo for outputs/grpo/trainer_state.json"
+  },
+  "how_to_reproduce": {
+    "local_gpu": [
+      "python -m scripts.train_sft       # writes outputs/sft/trainer_state.json",
+      "python -m scripts.train_grpo      # writes outputs/grpo/trainer_state.json"
+    ],
+    "colab_full_run": "Open financial_triage_training.ipynb and Runtime -> Run all (Tesla T4 is sufficient)",
+    "wandb_integration": "export WANDB_API_KEY=<key> before either command; both scripts set report_to='wandb' when the var is set"
+  }
+}
