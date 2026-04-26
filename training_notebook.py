@@ -59,7 +59,15 @@ sys.path.insert(0, "financial-triage-env")
 # Verify import
 from server.my_env_environment import MyEnvironment
 from models import FinancialAction, ActionType, FinancialObservation
-from inference import _heuristic_action, observation_to_prompt, SYSTEM_PROMPT
+from inference import (
+    _heuristic_action,
+    format_action,
+    observation_to_prompt,
+    parse_action,
+    parse_action_strict,
+    replay_expert_prefix,
+    SYSTEM_PROMPT,
+)
 from tasks import get_task_config
 
 print("✅ Environment loaded successfully!")
@@ -90,26 +98,29 @@ def collect_trajectories(task_ids=["easy", "medium", "hard"], seeds_per_task=15)
             obs = env.reset(seed=seed, task_id=task_id)
 
             episode_pairs = []
+            prefix_for_row: list = []
             for day in range(obs.episode_length):
                 # Build observation text
                 obs_text = observation_to_prompt(obs)
 
                 # Get heuristic action
                 action = _heuristic_action(obs)
-                action_text = _action_to_text(action)
+                action_text = format_action(action)
 
-                # Step environment
-                obs = env.step(action)
-
-                # Store pair with step reward
+                # Store pair with step reward and prefix to replay to this (task, seed, day)
                 episode_pairs.append({
                     "task_id": task_id,
                     "seed": seed,
                     "day": day,
                     "observation": obs_text,
                     "action": action_text,
+                    "prefix_actions": list(prefix_for_row),
                     "step_reward": obs.reward if hasattr(obs, 'reward') else 0.0,
                 })
+
+                # Step environment, then extend prefix for the next row
+                obs = env.step(action)
+                prefix_for_row.append(action_text)
 
             # Get episode score
             score = env.get_episode_score()
@@ -126,20 +137,6 @@ def collect_trajectories(task_ids=["easy", "medium", "hard"], seeds_per_task=15)
               f"best={max(task_scores):.4f}")
 
     return data, scores_by_task
-
-
-def _action_to_text(action: FinancialAction) -> str:
-    """Convert a FinancialAction to its text representation."""
-    at = action.action_type.value
-    if action.bill_id:
-        return f"{at}({action.bill_id})"
-    elif action.debt_id and action.amount:
-        return f"{at}({action.debt_id}, {action.amount:.0f})"
-    elif action.debt_id:
-        return f"{at}({action.debt_id})"
-    elif action.amount:
-        return f"{at}({action.amount:.0f})"
-    return at
 
 
 print("📊 Collecting expert trajectories from heuristic agent...")
@@ -180,8 +177,7 @@ def build_grpo_dataset(trajectories):
     records = []
     seen = set()
     for t in trajectories:
-        # De-duplicate similar observations
-        key = t["observation"][:200]
+        key = (t["task_id"], t["seed"], t["day"])
         if key in seen:
             continue
         seen.add(key)
@@ -193,7 +189,9 @@ def build_grpo_dataset(trajectories):
         records.append({
             "prompt": prompt,
             "task_id": t["task_id"],
+            "seed": t["seed"],
             "day": t["day"],
+            "prefix_actions": t["prefix_actions"],
         })
     return Dataset.from_list(records)
 
@@ -285,17 +283,16 @@ print("🚀 Starting SFT training (behavioral cloning)...")
 print("   This takes ~20-40 minutes on T4")
 sft_results = sft_trainer.train()
 
-# Save SFT checkpoint
+# Save SFT checkpoint (PEFT / LoRA adapters; merge to full weights with Unsloth if needed for export)
 model.save_pretrained("./sft_model")
 tokenizer.save_pretrained("./sft_model")
 print(f"✅ SFT training complete! Final loss: {sft_results.training_loss:.4f}")
+print("   Note: saved adapters only — use model.merge_and_unload() + save_pretrained for merged weights (see Unsloth docs).")
 
 # %% Cell 7: Evaluate SFT Model
 # ============================================================================
 # Run the SFT-trained model on the environment and compare vs heuristic.
 # ============================================================================
-
-from inference import parse_action
 
 FastLanguageModel.for_inference(model)
 
@@ -367,36 +364,40 @@ from trl import GRPOTrainer, GRPOConfig
 FastLanguageModel.for_training(model)
 
 
-def financial_reward_function(prompts, completions, **kwargs):
+def _completion_to_action_text(completion) -> str:
+    if isinstance(completion, list) and completion:
+        last = completion[-1]
+        if isinstance(last, dict) and "content" in last:
+            return str(last.get("content", ""))
+    return str(completion)
+
+
+def financial_reward_function(
+    prompts,
+    completions,
+    task_id,
+    seed,
+    prefix_actions,
+    **kwargs,
+):
     """
-    Reward function for GRPO: execute the proposed action in the environment
-    and return the step-level reward.
+    GRPO: replay prefix_actions (expert) to match the row's state, then step with the
+    model completion; use dense per-step return from _last_breakdown['total'].
     """
     rewards = []
-    for prompt_msgs, completion in zip(prompts, completions):
+    for completion, tid, s, pre in zip(completions, task_id, seed, prefix_actions, strict=True):
         try:
-            # Parse the action from the completion
-            action_text = completion.strip().split("\n")[0].strip()
-
-            # Create a temporary env to evaluate
-            # (We use a fixed seed for consistency within each batch)
+            action_text = _completion_to_action_text(completion).strip().split("\n")[0].strip()
             env = MyEnvironment()
-            obs = env.reset(seed=42, task_id="medium")
-
-            # Try to find the right day state from the prompt
-            parsed_action = parse_action(action_text, obs)
-            if parsed_action is None:
-                rewards.append(-1.0)  # Invalid action penalty
+            obs = replay_expert_prefix(env, str(tid), int(s), list(pre or []))
+            strict_action = parse_action_strict(action_text, obs)
+            if strict_action is None:
+                rewards.append(-1.0)
                 continue
-
-            # Execute action and get reward
-            next_obs = env.step(parsed_action)
-            step_reward = env._last_breakdown.get("total", 0.0) if hasattr(env, '_last_breakdown') else 0.0
-
-            # Normalize reward to [-1, 1] range
+            env.step(strict_action)
+            step_reward = float(env._last_breakdown.get("total", 0.0))
             normalized = max(-1.0, min(1.0, step_reward / 30.0))
             rewards.append(normalized)
-
         except Exception:
             rewards.append(-1.0)
 
@@ -438,10 +439,10 @@ print("🚀 Starting GRPO training...")
 print("   This takes ~60-90 minutes on T4")
 grpo_results = grpo_trainer.train()
 
-# Save GRPO checkpoint
+# Save GRPO checkpoint (PEFT / LoRA adapters)
 model.save_pretrained("./grpo_model")
 tokenizer.save_pretrained("./grpo_model")
-print(f"✅ GRPO training complete!")
+print("✅ GRPO training complete! (adapters; merge with Unsloth before serving a merged model if required.)")
 
 # %% Cell 9: Final Evaluation — Before vs After
 # ============================================================================

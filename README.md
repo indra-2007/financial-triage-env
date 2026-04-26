@@ -13,7 +13,7 @@ pinned: false
 <div align="center">
 
 # Financial Triage
-<h3 style="font-size:1.35em;font-weight:600;margin:0.4em 0 0.2em;">Long-horizon household money in INR—rules you can audit, not a pitch deck.</h3>
+<h3 style="font-size:1.35em;font-weight:600;margin:0.4em 0 0.2em;">Miss a payment here and the score drops.<br/>No explanation, no retry—same rule every time.</h3>
 <p style="font-size:1.05em;margin:0.5em 0 1em;"><strong>OpenEnv · Hugging Face Space</strong></p>
 
 [![Space](https://img.shields.io/badge/🤗%20Space-indra--dhanush%2Ffinancial--triage--env-yellow)](https://huggingface.co/spaces/indra-dhanush/financial-triage-env)
@@ -21,6 +21,8 @@ pinned: false
 [![OpenEnv](https://img.shields.io/badge/openenv--core-≥%200.2.3-blue)](https://pypi.org/project/openenv-core/)
 
 </div>
+
+**This is not a summary of your finances — it is a simulator that can still say no.** This is a day-by-day household-finance simulator in **INR**: you choose which bill eats cash first, when savings move, and which “fast money” offers to refuse. Every balance change follows code you can read and fight; outside citations only **frame** the story, while every rupee **inside** the run is synthetic, rule-bound, and reproducible. Slides reassure; this thing can still tell you **no**.
 
 ## Hackathon submission checklist (judges)
 
@@ -35,9 +37,7 @@ pinned: false
 
 **Themes:** **#2** long-horizon (30/60/90 days) and **#3.1** economic world model (partial observability, INR)—see [Which hackathon themes this hits](#which-hackathon-themes-this-hits). **Rubric map:** [What each scoring criterion points to here](#what-each-scoring-criterion-points-to-here).
 
-**One missed trade-off shows up in the ledger on the next line—no deck makes that sting go away.** This is a day-by-day household-finance simulator in **INR**: you choose which bill eats cash first, when savings move, and which “fast money” offers to refuse. Every balance change follows code you can read and fight; outside citations only **frame** the story, while every rupee **inside** the run is synthetic, rule-bound, and reproducible. Slides reassure; this thing can still tell you **no**.
-
-## Find your way around
+## Where to go in this document
 
 | Skip to… | Section |
 |----------|---------|
@@ -60,7 +60,7 @@ pinned: false
 
 ## What happens each day: reset, step, grade
 
-**OpenEnv** contract: **`reset(task_id)`**, then **`step(action)`** until finish, then one **grader scalar**: **a score between 0 and 1** (defined under [Episode grade](#episode-grade)). One transition = **one day**; **one** action from **eleven** options (bills, minimums, deferral, extra principal, savings in/out, three loan types, negotiate, abstain). No cosplay as your bank—either the books obey the rules or they do not.
+**OpenEnv** contract: **`reset(task_id)`**, then **`step(action)`** until finish, then one **grader scalar**: **a score between 0 and 1** (defined under [Episode grade](#episode-grade)). One transition = **one day**; **one** action from **eleven** options (bills, minimums, deferral, extra principal, savings in/out, three loan types, negotiate, abstain). Either the books obey the rules or they do not.
 
 <p align="center">
   <img src="flowchart.png" alt="OpenEnv loop: reset, observation, one of eleven actions, one-day step, loop or grader" width="100%" style="max-width:1100px;" />
@@ -98,7 +98,7 @@ flowchart LR
 
 | Weight | Criterion | Where it shows up |
 |--------|-----------|-------------------|
-| 40% | Innovation | Innovation is **14** additive terms in `_compute_reward` (`server/my_env_environment.py`), **mechanical** anti-gaming (**do-nothing streaks**, **no savings-growth credit on same-day withdraw+redeposit**, **seven-day diversity**), and an **INR** sim with **stochastic UPI micro-spend** and an **informal moneylender** where the pitch can undersell the ledger hit, plus episode curves in `tasks.py`. |
+| 40% | Innovation | Innovation is **14** additive terms in `_compute_reward` (`server/my_env_environment.py`), **mechanical** anti-gaming (**do-nothing streaks**, **no savings-growth credit on same-day withdraw+redeposit**, **seven-day diversity**). The environment models **INR**-denominated cash flow with **stochastic UPI micro-spend**. An **informal moneylender** in the sim can show a pitch that undersells the ledger hit. Episode curves sit in `tasks.py`. |
 | 30% | Story | This README + [`MINI_BLOG.md`](MINI_BLOG.md) |
 | 20% | Training evidence | `training_loss_7b.png`, `before_after_scores_7b.png` at repo root |
 | 10% | Reward + pipeline | [How step reward is shaped](#how-step-reward-is-shaped) · [Training and the published figures](#training-and-the-published-figures) |

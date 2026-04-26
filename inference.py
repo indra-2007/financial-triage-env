@@ -283,6 +283,51 @@ def parse_action(response_text: str, obs: FinancialObservation) -> FinancialActi
     return _heuristic_action(obs)
 
 
+def parse_action_strict(
+    response_text: str, obs: FinancialObservation
+) -> Optional[FinancialAction]:
+    """
+    Parse LLM output to a valid FinancialAction, or return None.
+    No heuristic fallback — for RL reward / strict eval.
+    """
+    text = response_text.strip()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        line = re.sub(
+            r"^(action|next action|response)\s*[:\-]\s*",
+            "",
+            line,
+            flags=re.IGNORECASE,
+        )
+        line = line.strip().strip("`").strip('"').strip("'")
+        action = _try_parse_action_string(line, obs)
+        if action is not None:
+            return action
+    return None
+
+
+def replay_expert_prefix(
+    env: MyEnvironment,
+    task_id: str,
+    seed: int,
+    prefix_action_texts: List[str],
+) -> FinancialObservation:
+    """
+    reset(task_id, seed) and replay expert action strings in order, leaving the env
+    on the same pre-step state as a trajectory row with the same prefix.
+    """
+    obs = env.reset(seed=seed, task_id=task_id)
+    for a_text in prefix_action_texts:
+        first = a_text.strip().split("\n")[0].strip()
+        act = _try_parse_action_string(first, obs)
+        if act is None:
+            act = _heuristic_action(obs)
+        obs = env.step(act)
+    return obs
+
+
 def _try_parse_action_string(s: str, obs: FinancialObservation) -> Optional[FinancialAction]:
     """Attempt to parse a single action string like 'pay_bill_full(rent)'."""
     s = s.strip()

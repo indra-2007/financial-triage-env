@@ -22,7 +22,7 @@ Most Indians never get a curriculum for **bill triage, predatory credit, and eme
 ## Training stack (what we actually ran)
 
 1. **SFT (warm start):** Behavioral cloning on short trajectories from a **heuristic** policy to teach valid action strings and task format.  
-2. **GRPO (improvement):** TRL + Unsloth, **4-bit `Qwen2.5-7B-Instruct`**, with rewards coming from the **live environment** rollouts (verifiable, not a static “fake” dataset for RL).
+2. **GRPO (improvement):** TRL + Unsloth, **4-bit `Qwen2.5-7B-Instruct`**, with rewards from **live** `env.step` after **replaying the expert `prefix_actions`** for that row’s `(task_id, seed, day)`, then a **strict** parse of the model’s action string; the scalar is **dense** `_last_breakdown['total']` (not `grade_episode`), normalized for TRL. Checkpoints are **LoRA adapters**; merge to full weights with Unsloth if you need a single merged file for export.
 
 *Hardware note:* 7B training was run in **Colab** (e.g. A100 with HF credits); Unsloth reduces memory and speeds up the loop.
 

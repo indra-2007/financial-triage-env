@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import copy
 import random
+import time
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -247,6 +248,13 @@ class MyEnvironment(Environment):
         **kwargs: Any,
     ) -> FinancialObservation:
         """Execute one day step in the financial simulation."""
+        t_wall0 = time.perf_counter()
+
+        def _wall_timeout_exceeded() -> bool:
+            if timeout_s is None or float(timeout_s) <= 0:
+                return False
+            return (time.perf_counter() - t_wall0) > float(timeout_s)
+
         # Reset per-step counters
         self._today_events = []
         self._today_interest = 0.0
@@ -286,6 +294,11 @@ class MyEnvironment(Environment):
 
         self._history["daily_rewards"].append(reward)
         self._last_breakdown = breakdown
+
+        if _wall_timeout_exceeded():
+            raise TimeoutError(
+                f"env.step exceeded timeout_s={timeout_s!r} (wall time {time.perf_counter() - t_wall0:.4f}s)"
+            )
 
         return self._build_observation(reward=reward, done=done)
 
@@ -971,7 +984,12 @@ class MyEnvironment(Environment):
             breakdown["inaction_penalty"] = -2.0 * (self._consecutive_do_nothing - 2)
 
         reward = sum(breakdown.values())
-        return round(reward, 4), {k: round(v, 4) for k, v in breakdown.items() if v != 0.0}
+        rounded = round(reward, 4)
+        out: Dict[str, float] = {
+            k: round(v, 4) for k, v in breakdown.items() if v != 0.0
+        }
+        out["total"] = rounded
+        return rounded, out
 
     # -------------------------------------------------------------------------
     # Observation builder
